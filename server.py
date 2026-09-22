@@ -7,17 +7,12 @@ import time
 import feedparser
 import os
 
-load_dotenv()  # reads the .env file and loads its values into the program
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
 API_KEY = os.getenv("COINGECKO_API_KEY")
-
-cached_coins = []
-cached_news = []
-
-API_KEY = "CG-MHKy5A43jM9S4UcgWFZ2LVSh"
 
 cached_coins = []
 cached_news = []
@@ -65,11 +60,10 @@ def fetch_news():
                 "published_parsed": entry.get("published_parsed") or time.gmtime(0)
             })
 
-    # newest first
     all_articles.sort(key=lambda article: article["published_parsed"], reverse=True)
 
     cached_news = []
-    for article in all_articles[:15]:  # keep only the 15 newest, across both sources
+    for article in all_articles[:15]:
         cached_news.append({
             "title": article["title"],
             "link": article["link"],
@@ -86,7 +80,7 @@ def price_refresh_loop():
 
 def news_refresh_loop():
     while True:
-        time.sleep(60)  # 1 minute -- news doesn't need to update as often as prices
+        time.sleep(300)
         fetch_news()
 
 @app.route("/")
@@ -101,11 +95,11 @@ def get_prices():
 def get_news():
     return jsonify(cached_news)
 
+fetch_all_coins()
+fetch_news()
+
+threading.Thread(target=price_refresh_loop, daemon=True).start()
+threading.Thread(target=news_refresh_loop, daemon=True).start()
+
 if __name__ == "__main__":
-    fetch_all_coins()
-    fetch_news()
-
-    threading.Thread(target=price_refresh_loop, daemon=True).start()
-    threading.Thread(target=news_refresh_loop, daemon=True).start()
-
     app.run(debug=True, use_reloader=False)
