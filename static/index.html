@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sift</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Sift</h1>
+    <p>Signal, not shills.</p>
+    <div class="search-box">
+        <input type="text" id="coinInput" placeholder="Search for a coin...">
+        <button id="searchButton">Search</button>
+        <div id="suggestions" class="suggestions"></div>
+    </div>
+    <p id="result"></p>
+
+    <table id="dashboard">
+        <thead>
+            <tr>
+                <th>Coin</th>
+                <th>Price</th>
+                <th>24h Change</th>
+            </tr>
+        </thead>
+        <tbody id="dashboardBody"></tbody>
+    </table>
+
+    <div id="newsSection">
+        <h2>Latest News</h2>
+        <ul id="newsList"></ul>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
