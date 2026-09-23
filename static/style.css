@@ -136,6 +136,25 @@
     padding-right: 2px;
   }
 
+  /* Ghost scrollbar — invisible until you hover the panel, then fades in as a
+     faint thread instead of sitting there full-time. Applies to both places
+     that scroll internally: the left column and the news list. Firefox gets
+     the closest equivalent via scrollbar-color; Chrome/Edge/Safari get the
+     full hover fade via ::-webkit-scrollbar. */
+  .left-col, .news-list {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
+  }
+  .left-col:hover, .news-list:hover { scrollbar-color: var(--border-glow) transparent; }
+  .left-col::-webkit-scrollbar, .news-list::-webkit-scrollbar { width: 5px; }
+  .left-col::-webkit-scrollbar-track, .news-list::-webkit-scrollbar-track { background: transparent; }
+  .left-col::-webkit-scrollbar-thumb, .news-list::-webkit-scrollbar-thumb {
+    background: transparent; border-radius: 10px; transition: background 0.2s ease;
+  }
+  .left-col:hover::-webkit-scrollbar-thumb, .news-list:hover::-webkit-scrollbar-thumb { background: var(--text-faint); }
+  .left-col:hover::-webkit-scrollbar-thumb:hover, .news-list:hover::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
   .fg-gauge { margin-top: 4px; }
   .fg-track { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--down), #ffc94d, var(--up)); position: relative; margin: 10px 0 8px; }
   .fg-marker { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--text); box-shadow: 0 0 8px rgba(255,255,255,0.6); border-radius: 2px; }
