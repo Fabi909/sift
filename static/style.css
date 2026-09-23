@@ -407,6 +407,20 @@
   .panel-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
   .panel-sub { font-size: 0.76rem; color: var(--text-faint); }
 
+  /* ---------- Top Coins table: Signal filter tabs ---------- */
+  .table-filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .sf-tab {
+    padding: 5px 12px; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s ease;
+  }
+  .sf-tab:hover { color: var(--text); }
+  .sf-tab[data-filter="all"].active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+  .sf-tab[data-filter="validated"].active { background: var(--up-soft); border-color: rgba(61,220,132,0.4); color: var(--up); }
+  .sf-tab[data-filter="mixed"].active { background: rgba(255,201,77,0.12); border-color: rgba(255,201,77,0.4); color: #ffc94d; }
+  .sf-tab[data-filter="unvalidated"].active { background: var(--down-soft); border-color: rgba(255,77,109,0.4); color: var(--down); }
+
   /* table-layout: fixed + explicit column widths below — without this, the
      "auto" layout algorithm hands most of the leftover width to whichever
      column has the loosest content (the Coin column), which both stretches
@@ -432,6 +446,23 @@
   thead th:nth-child(4) { width: 16%; }
   thead th:nth-child(5) { width: 15%; }
   thead th:nth-child(6) { width: auto; }
+
+  /* Sortable column headers — click to sort, click again to flip direction.
+     The arrow is positioned absolutely (out of the header's own text flow)
+     rather than inline after the label, so it never competes with the label
+     for width inside that column's overflow:hidden/ellipsis box — several of
+     these columns (Market Cap especially) are already tight at their fixed
+     percentage widths, and an inline arrow glyph was enough extra width to
+     push the label itself into truncating. Extra right padding to make room
+     for it is only added on the column that's actually active, so the other
+     headers keep their full label width. */
+  thead th.sortable { cursor: pointer; user-select: none; transition: color 0.15s ease; position: relative; }
+  thead th.sortable:hover { color: var(--text); }
+  thead th.sortable.sort-active { color: var(--text); padding-right: 20px; }
+  .sort-arrow {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+    font-size: 0.6rem; color: var(--accent);
+  }
 
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s ease, box-shadow 0.12s ease; }
   tbody tr:last-child { border-bottom: none; }
@@ -537,11 +568,16 @@
     border: 5px solid transparent;
     border-top-color: #0d1117;
   }
+  /* Hover tooltip disabled for now, per request — the .signal-tooltip markup
+     and base styles above (opacity:0/visibility:hidden by default) are left
+     in place on purpose, so re-enabling this later is just uncommenting the
+     rule below instead of rebuilding it.
   .signal-badge:hover .signal-tooltip {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
   }
+  */
 
   .tt-more {
     font-size: 0.66rem; color: var(--accent); font-weight: 700;

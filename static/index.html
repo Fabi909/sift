@@ -98,9 +98,22 @@
           <span class="panel-title">Top Coins</span>
           <span class="panel-sub" id="lastUpdated">Loading&hellip;</span>
         </div>
+        <div class="table-filters" id="tableFilters">
+          <div class="sf-tab active" data-filter="all">All</div>
+          <div class="sf-tab" data-filter="validated">Validated</div>
+          <div class="sf-tab" data-filter="mixed">Mixed</div>
+          <div class="sf-tab" data-filter="unvalidated">Unvalidated</div>
+        </div>
         <table>
           <thead>
-            <tr><th class="watch-th"></th><th>Coin</th><th>Price</th><th>Market Cap</th><th>24h</th><th>Signal</th></tr>
+            <tr>
+              <th class="watch-th"></th>
+              <th class="sortable" data-sort="name">Coin<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="price">Price<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="market_cap">Market Cap<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="change24h">24h<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="signal">Signal<span class="sort-arrow"></span></th>
+            </tr>
           </thead>
           <tbody id="coinTableBody">
             <tr class="table-loading"><td colspan="6">Loading coins&hellip;</td></tr>

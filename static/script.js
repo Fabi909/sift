@@ -26,6 +26,9 @@ let liveCoins = [];
 let coinsById = new Map();
 let currentFilter = null;   // coin id when the table is filtered to a search result
 let activeTf = "24h";       // Top Movers timeframe
+let sortColumn = "market_cap";  // Top Coins table: which column is currently sorted
+let sortDirection = "desc";     // "asc" | "desc"
+let signalFilter = "all";       // Top Coins table: "all" | "validated" | "mixed" | "unvalidated"
 
 let watchlist = getWatchlist();
 let userTier = getTier();
@@ -148,10 +151,46 @@ function rebuildCoinIndex() {
 
 // ---------------------------------------------------------------------------
 // Render: Top Coins table
+//
+// Sorting + the Validated/Mixed/Unvalidated filter both operate on liveCoins
+// (the top-300-by-market-cap pool already being polled every 3s) — same pool
+// Top Movers/Noise Alert/etc. already draw from, so "sort by price ascending"
+// means cheapest among the coins we're actively tracking, not literally every
+// coin that exists. A search match (currentFilter) still wins outright, same
+// as before, and shows just that one coin regardless of sort/filter state.
 // ---------------------------------------------------------------------------
+const SORT_ACCESSORS = {
+  name: c => (c.name || "").toLowerCase(),
+  price: c => c.current_price,
+  market_cap: c => c.market_cap,
+  change24h: c => c.price_change_percentage_24h_in_currency ?? c.price_change_percentage_24h,
+  signal: c => (c.signal ? SIGNAL_ORDER[c.signal.status] : null),
+};
+
+// Coins missing the sorted field always sink to the bottom, regardless of
+// sort direction — otherwise ascending sorts would shove nulls to the top.
+function compareForSort(av, bv, direction) {
+  const aNull = av == null, bNull = bv == null;
+  if (aNull && bNull) return 0;
+  if (aNull) return 1;
+  if (bNull) return -1;
+  if (av < bv) return direction === "asc" ? -1 : 1;
+  if (av > bv) return direction === "asc" ? 1 : -1;
+  return 0;
+}
+
 function getTableCoins() {
   if (currentFilter) return liveCoins.filter(c => c.id === currentFilter);
-  return liveCoins.slice(0, TABLE_SIZE);
+
+  let coins = liveCoins;
+  if (signalFilter !== "all") {
+    coins = coins.filter(c => c.signal && c.signal.status === signalFilter);
+  }
+
+  const accessor = SORT_ACCESSORS[sortColumn] || SORT_ACCESSORS.market_cap;
+  coins = coins.slice().sort((a, b) => compareForSort(accessor(a), accessor(b), sortDirection));
+
+  return coins.slice(0, TABLE_SIZE);
 }
 
 function renderTable() {
@@ -163,7 +202,10 @@ function renderTable() {
     return;
   }
   if (coins.length === 0) {
-    tbody.innerHTML = `<tr class="table-loading"><td colspan="6">No coins match your search.</td></tr>`;
+    const msg = (!currentFilter && signalFilter !== "all")
+      ? `No coins are currently flagged ${SIGNAL_LABELS[signalFilter]}.`
+      : "No coins match your search.";
+    tbody.innerHTML = `<tr class="table-loading"><td colspan="6">${msg}</td></tr>`;
     return;
   }
 
@@ -577,6 +619,48 @@ document.querySelectorAll(".tf-tab").forEach(tab => {
     activeTf = tab.dataset.tf;
     renderMovers();
   });
+});
+
+// Top Coins table: sortable column headers. Click sorts by that column;
+// clicking the same column again flips direction. Text columns default to
+// A→Z, numeric columns default to biggest-first, since that's what people
+// expect on first click (e.g. clicking "Market Cap" shouldn't surface the
+// smallest coins first).
+function updateSortHeaderUI() {
+  document.querySelectorAll("thead th.sortable").forEach(th => {
+    const arrow = th.querySelector(".sort-arrow");
+    if (th.dataset.sort === sortColumn) {
+      th.classList.add("sort-active");
+      if (arrow) arrow.textContent = sortDirection === "asc" ? " ▲" : " ▼";
+    } else {
+      th.classList.remove("sort-active");
+      if (arrow) arrow.textContent = "";
+    }
+  });
+}
+
+document.querySelectorAll("thead th.sortable").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (sortColumn === key) {
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      sortColumn = key;
+      sortDirection = key === "name" ? "asc" : "desc";
+    }
+    updateSortHeaderUI();
+    renderTable();
+  });
+});
+updateSortHeaderUI(); // reflect the default (Market Cap, desc) on first paint
+
+// Top Coins table: Validated/Mixed/Unvalidated filter tabs.
+document.getElementById("tableFilters").addEventListener("click", (e) => {
+  const tab = e.target.closest(".sf-tab");
+  if (!tab) return;
+  signalFilter = tab.dataset.filter;
+  document.querySelectorAll("#tableFilters .sf-tab").forEach(t => t.classList.toggle("active", t === tab));
+  renderTable();
 });
 
 document.getElementById("searchInput").addEventListener("input", (e) => {
