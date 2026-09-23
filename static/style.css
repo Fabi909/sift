@@ -19,7 +19,8 @@
   }
 
   * { box-sizing: border-box; }
-    /* Page-level scrollbar (the one along the very edge of the browser window,
+
+  /* Page-level scrollbar (the one along the very edge of the browser window,
      as opposed to the internal ones on the left column and news panel below).
      Styled onto html, since that's what actually scrolls when the page is
      taller than the viewport. Matches the same family as the ghost scrollbar
@@ -34,7 +35,7 @@
   html::-webkit-scrollbar-track { background: transparent; }
   html::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 10px; }
   html::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-  
+
   html, body {
     margin: 0;
     padding: 0;
@@ -194,7 +195,12 @@
   .mover-change.down { color: var(--down); }
 
   .noise-count { font-size: 0.68rem; font-weight: 700; color: var(--down); background: var(--down-soft); border: 1px solid rgba(255,77,109,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.02em; }
-  .noise-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--down); box-shadow: 0 0 6px var(--down); display: inline-block; margin-right: 8px; }
+  /* flex-shrink:0 matters here: this dot is a flex item inside .mover-left,
+     and without it, a long coin name forcing that row to squeeze will shrink
+     the dot's width right along with everything else instead of leaving a
+     fixed-size dot alone — which is what made it look thinner/misaligned on
+     rows with a long name. */
+  .noise-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--down); box-shadow: 0 0 6px var(--down); display: inline-block; margin-right: 8px; flex-shrink: 0; }
 
   .card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .card-header-row .card-title { margin: 0; }
@@ -233,7 +239,7 @@
 
   /* ---------- Quiet Coverage ---------- */
   .quiet-count { font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(124,92,255,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.02em; }
-  .quiet-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); display: inline-block; margin-right: 8px; }
+  .quiet-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); display: inline-block; margin-right: 8px; flex-shrink: 0; }
 
   .watchlist-empty { font-size: 0.8rem; color: var(--text-faint); padding: 10px 0; line-height: 1.5; }
   .watch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
