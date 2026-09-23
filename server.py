@@ -153,15 +153,15 @@ def fetch_coin_platforms():
 # distinct, separately-priced asset from the native coin, just pegged ~1:1.
 WRAPPED_COIN_MAP = {
     "bitcoin": [
-        ("wrapped-bitcoin", "Wrapped BTC (WBTC)"),
-        ("coinbase-wrapped-btc", "Coinbase Wrapped BTC (cbBTC)"),
-        ("wrapped-btc-wormhole", "Wrapped BTC (Wormhole)"),
+        ("wrapped-bitcoin", "WBTC"),
+        ("coinbase-wrapped-btc", "cbBTC"),
+        ("wrapped-btc-wormhole", "Wormhole WBTC"),
     ],
     "ethereum": [
-        ("weth", "Wrapped Ether (WETH)"),
+        ("weth", "WETH"),
     ],
     "solana": [
-        ("wrapped-sol-2", "Wrapped SOL (WSOL)"),
+        ("wrapped-sol-2", "WSOL"),
     ],
 }
 

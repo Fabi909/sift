@@ -589,10 +589,14 @@ function truncateAddr(addr) {
   return addr.slice(0, 8) + "…" + addr.slice(-6);
 }
 
-function contractRowHTML(chain, addr) {
+function contractRowHTML(chain, addr, tokenLabel) {
+  // tokenLabel is only set for a native coin's wrapped/bridged versions
+  // (e.g. "Ethereum (WBTC)"), so a single flat list can hold several tokens
+  // on the same chain without needing a separate heading row per token.
+  const chainLabel = tokenLabel ? `${formatChainName(chain)} (${tokenLabel})` : formatChainName(chain);
   return `
     <div class="contract-row">
-      <span class="contract-chain">${formatChainName(chain)}</span>
+      <span class="contract-chain">${chainLabel}</span>
       <span class="contract-addr mono" title="${addr}">${truncateAddr(addr)}</span>
       <button class="contract-copy-btn" data-addr="${addr}">Copy</button>
     </div>`;
@@ -616,16 +620,18 @@ function renderContractCard(coin) {
   }
 
   // Native coin (Bitcoin, Ethereum, Solana...) with no address of its own,
-  // but known wrapped/bridged versions exist — show those instead, clearly
-  // labeled so it's obvious they're a different, separately-priced asset.
+  // but known wrapped/bridged versions exist — show those instead, as one
+  // flat list (chain + which token) rather than a separate heading per token.
   if (wrapped.length > 0) {
+    const rows = [];
+    wrapped.forEach(w => {
+      Object.entries(w.platforms).forEach(([chain, addr]) => {
+        rows.push(contractRowHTML(chain, addr, w.label));
+      });
+    });
     body.innerHTML = `
       <p class="contract-warning">${coin.name} itself is a native coin with no contract address. These are bridged/wrapped versions of ${coin.name} that trade as tokens on other chains — always confirm you're using the right one before you trade.</p>
-      ${wrapped.map(w => `
-        <div class="contract-group">
-          <div class="contract-group-label">${w.label}</div>
-          ${Object.entries(w.platforms).map(([chain, addr]) => contractRowHTML(chain, addr)).join("")}
-        </div>`).join("")}
+      ${rows.join("")}
     `;
     return;
   }
