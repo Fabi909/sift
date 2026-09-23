@@ -589,26 +589,48 @@ function truncateAddr(addr) {
   return addr.slice(0, 8) + "…" + addr.slice(-6);
 }
 
+function contractRowHTML(chain, addr) {
+  return `
+    <div class="contract-row">
+      <span class="contract-chain">${formatChainName(chain)}</span>
+      <span class="contract-addr mono" title="${addr}">${truncateAddr(addr)}</span>
+      <button class="contract-copy-btn" data-addr="${addr}">Copy</button>
+    </div>`;
+}
+
 function renderContractCard(coin) {
   const body = document.getElementById("detailContractBody");
   if (!body) return;
   const platforms = coin.platforms || {};
   const entries = Object.entries(platforms);
+  const wrapped = coin.wrapped || [];
 
-  if (entries.length === 0) {
-    body.innerHTML = `<p class="loading-row">${coin.name} is a native coin, not a token on another chain — there's no contract address to verify here.</p>`;
+  // Coin is itself a token on other chains (e.g. Tether, most altcoins) —
+  // show its own addresses directly, same as before.
+  if (entries.length > 0) {
+    body.innerHTML = `
+      <p class="contract-warning">Always double-check this address before pasting it into a wallet or DEX — scam tokens can copy a coin's name and logo, but not its contract address.</p>
+      ${entries.map(([chain, addr]) => contractRowHTML(chain, addr)).join("")}
+    `;
     return;
   }
 
-  body.innerHTML = `
-    <p class="contract-warning">Always double-check this address before pasting it into a wallet or DEX — scam tokens can copy a coin's name and logo, but not its contract address.</p>
-    ${entries.map(([chain, addr]) => `
-      <div class="contract-row">
-        <span class="contract-chain">${formatChainName(chain)}</span>
-        <span class="contract-addr mono" title="${addr}">${truncateAddr(addr)}</span>
-        <button class="contract-copy-btn" data-addr="${addr}">Copy</button>
-      </div>`).join("")}
-  `;
+  // Native coin (Bitcoin, Ethereum, Solana...) with no address of its own,
+  // but known wrapped/bridged versions exist — show those instead, clearly
+  // labeled so it's obvious they're a different, separately-priced asset.
+  if (wrapped.length > 0) {
+    body.innerHTML = `
+      <p class="contract-warning">${coin.name} itself is a native coin with no contract address. These are bridged/wrapped versions of ${coin.name} that trade as tokens on other chains — always confirm you're using the right one before you trade.</p>
+      ${wrapped.map(w => `
+        <div class="contract-group">
+          <div class="contract-group-label">${w.label}</div>
+          ${Object.entries(w.platforms).map(([chain, addr]) => contractRowHTML(chain, addr)).join("")}
+        </div>`).join("")}
+    `;
+    return;
+  }
+
+  body.innerHTML = `<p class="loading-row">${coin.name} is a native coin, not a token on another chain — there's no contract address to verify here.</p>`;
 }
 
 document.getElementById("coinDetailView").addEventListener("click", (e) => {

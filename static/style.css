@@ -478,6 +478,10 @@
   }
   .contract-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
   .contract-row:last-child { border-bottom: none; }
+  .contract-group { margin-bottom: 6px; }
+  .contract-group:last-child { margin-bottom: 0; }
+  .contract-group-label { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; padding: 12px 0 2px; }
+  .contract-group:first-child .contract-group-label { padding-top: 0; }
   .contract-chain { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); width: 100px; flex-shrink: 0; }
   .contract-addr { flex: 1; font-size: 0.84rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .contract-copy-btn {

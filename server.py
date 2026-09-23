@@ -144,12 +144,42 @@ def fetch_coin_platforms():
     print("Platform cache refreshed. Coins with contract addresses:", len(cached_platforms))
 
 
+# A handful of major coins (Bitcoin, Ethereum, Solana...) are native assets
+# with no contract address of their own — but people coming from an
+# Axiom/Fomo-style terminal are often really looking for one of their
+# wrapped/bridged representations (WBTC, cbBTC, WETH, ...), which DO have
+# contract addresses since they're issued as tokens on other chains. These
+# CoinGecko ids were confirmed by hand against coingecko.com; each is a
+# distinct, separately-priced asset from the native coin, just pegged ~1:1.
+WRAPPED_COIN_MAP = {
+    "bitcoin": [
+        ("wrapped-bitcoin", "Wrapped BTC (WBTC)"),
+        ("coinbase-wrapped-btc", "Coinbase Wrapped BTC (cbBTC)"),
+        ("wrapped-btc-wormhole", "Wrapped BTC (Wormhole)"),
+    ],
+    "ethereum": [
+        ("weth", "Wrapped Ether (WETH)"),
+    ],
+    "solana": [
+        ("wrapped-sol-2", "Wrapped SOL (WSOL)"),
+    ],
+}
+
+
 def attach_platforms():
-    """Merge cached_platforms onto every coin currently in cached_coins.
-    Called after either cache refreshes, since either one can outrun the
-    other on the initial load / different refresh intervals."""
+    """Merge cached_platforms onto every coin currently in cached_coins, plus
+    — for the majors in WRAPPED_COIN_MAP — the addresses of their known
+    wrapped/bridged tokens, labeled so the UI can be clear these aren't the
+    native coin itself. Called after either cache refreshes, since either one
+    can outrun the other on the initial load / different refresh intervals."""
     for coin in cached_coins:
         coin["platforms"] = cached_platforms.get(coin["id"], {})
+        wrapped = []
+        for wrapped_id, label in WRAPPED_COIN_MAP.get(coin["id"], []):
+            addrs = cached_platforms.get(wrapped_id)
+            if addrs:
+                wrapped.append({"label": label, "platforms": addrs})
+        coin["wrapped"] = wrapped
 
 
 def fetch_all_coins():
