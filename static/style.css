@@ -304,25 +304,39 @@
   .panel-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
   .panel-sub { font-size: 0.76rem; color: var(--text-faint); }
 
-  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  /* table-layout: fixed + explicit column widths below — without this, the
+     "auto" layout algorithm hands most of the leftover width to whichever
+     column has the loosest content (the Coin column), which both stretches
+     the gap between Coin and Price for no reason and, on top of that, can
+     push the table wider than the center column so its right edge renders
+     underneath the news panel next to it. Fixed widths keep the table
+     exactly as wide as its container, always. */
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
   thead th:first-child { border-top-left-radius: 12px; }
   thead th:last-child { border-top-right-radius: 12px; }
   tbody tr:last-child td:first-child { border-bottom-left-radius: 12px; }
   tbody tr:last-child td:last-child { border-bottom-right-radius: 12px; }
-  thead th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); padding: 12px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  thead th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); padding: 12px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   thead th:not(:first-child), tbody td:not(:first-child) { text-align: right; }
   /* The Coin column's cells use a flex layout (.coin-cell) that always renders
      left-aligned regardless of text-align, so its header needs to match —
      otherwise "COIN" visibly drifts right of the coin rows beneath it. */
   thead th:nth-child(2) { text-align: left; }
 
+  thead th:nth-child(1) { width: 40px; }
+  thead th:nth-child(2) { width: 24%; }
+  thead th:nth-child(3) { width: 18%; }
+  thead th:nth-child(4) { width: 16%; }
+  thead th:nth-child(5) { width: 15%; }
+  thead th:nth-child(6) { width: auto; }
+
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s ease, box-shadow 0.12s ease; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
 
-  td { padding: 13px 16px; font-size: 0.9rem; white-space: nowrap; }
+  td { padding: 13px 16px; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .coin-cell { display: flex; align-items: center; gap: 10px; }
+  .coin-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .coin-dot {
     width: 26px; height: 26px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
@@ -342,8 +356,8 @@
   .coin-dot.c4 { background: rgba(240, 169, 78, 0.16); border-color: rgba(240, 169, 78, 0.5); color: #f0a94e; }
   .coin-dot.c5 { background: rgba(91, 141, 239, 0.14); border-color: rgba(91, 141, 239, 0.45); color: #5b8def; }
   .coin-dot.c6 { background: rgba(45, 212, 191, 0.14); border-color: rgba(45, 212, 191, 0.45); color: #2dd4bf; }
-  .coin-name { font-weight: 600; }
-  .coin-sym { color: var(--text-faint); font-size: 0.8rem; margin-left: 4px; }
+  .coin-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .coin-sym { color: var(--text-faint); font-size: 0.8rem; margin-left: 4px; flex-shrink: 0; }
 
   .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; }
 
