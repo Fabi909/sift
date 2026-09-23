@@ -143,12 +143,19 @@
   .fg-value { text-align: center; font-size: 1.3rem; font-weight: 800; color: var(--brand); margin-top: 6px; }
   .fg-value-label { text-align: center; font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.05em; }
 
-  .mover-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  /* mover-row is used by Top Movers, Noise Alert, Quiet Coverage, and the
+     Watchlist — all narrow sidebar cards. Without min-width:0 on the shrinking
+     pieces, a flex item's default min-width is "auto" (its full content
+     width), so a long coin name refuses to shrink and instead pushes the row
+     wider than the card, which is what forces the sideways scroll. Ellipsis
+     + min-width:0 on the name lets it truncate instead, while mover-sym and
+     mover-change/mover-rank keep flex-shrink:0 so they never get squeezed. */
+  .mover-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .mover-row:last-child { border-bottom: none; }
-  .mover-rank { color: var(--text-faint); font-size: 0.72rem; width: 14px; display: inline-block; }
-  .mover-name { font-size: 0.82rem; font-weight: 600; }
-  .mover-sym { color: var(--text-faint); font-size: 0.72rem; margin-left: 4px; }
-  .mover-change { font-size: 0.8rem; font-weight: 700; }
+  .mover-rank { color: var(--text-faint); font-size: 0.72rem; width: 14px; display: inline-block; flex-shrink: 0; }
+  .mover-name { font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+  .mover-sym { color: var(--text-faint); font-size: 0.72rem; margin-left: 4px; flex-shrink: 0; }
+  .mover-change { font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
   .mover-change.up { color: var(--up); }
   .mover-change.down { color: var(--down); }
 
@@ -195,9 +202,9 @@
   .quiet-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); display: inline-block; margin-right: 8px; }
 
   .watchlist-empty { font-size: 0.8rem; color: var(--text-faint); padding: 10px 0; line-height: 1.5; }
-  .watch-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .watch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .watch-row:last-child { border-bottom: none; }
-  .watch-row-right { display: flex; align-items: center; gap: 10px; }
+  .watch-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .watch-price { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   .watch-price.up { color: var(--up); }
   .watch-price.down { color: var(--down); }
@@ -319,10 +326,11 @@
     overflow: hidden; text-align: left; z-index: 5;
     box-shadow: 0 12px 30px rgba(0,0,0,0.4), 0 0 24px rgba(124, 92, 255, 0.08);
   }
-  .suggestion-item { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; font-size: 0.9rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s ease; }
+  .suggestion-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 16px; font-size: 0.9rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s ease; }
   .suggestion-item:last-child { border-bottom: none; }
   .suggestion-item:hover { background: var(--surface-2); }
-  .suggestion-item .sym { color: var(--text-faint); font-size: 0.8rem; }
+  .suggestion-item .sym { color: var(--text-faint); font-size: 0.8rem; flex-shrink: 0; }
+  .sugg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 
   .panel-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
   .panel-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
@@ -383,7 +391,7 @@
   .coin-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .coin-sym { color: var(--text-faint); font-size: 0.8rem; margin-left: 4px; flex-shrink: 0; }
 
-  .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; }
+  .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
 
   .price { font-weight: 600; }
   .cap-vol { color: var(--text-dim); }

@@ -443,7 +443,7 @@ function renderSuggestions(query) {
 
   box.innerHTML = matches.map(c => `
     <div class="suggestion-item" data-id="${c.id}">
-      <span class="sugg-left">${coinDotHTML(c, "sm")}${c.name}</span>
+      <span class="sugg-left">${coinDotHTML(c, "sm")}<span class="sugg-name">${c.name}</span></span>
       <span class="sym">${(c.symbol || "").toUpperCase()}</span>
     </div>`).join("");
   box.style.display = "block";
