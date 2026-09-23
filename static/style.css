@@ -311,6 +311,10 @@
   tbody tr:last-child td:last-child { border-bottom-right-radius: 12px; }
   thead th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); padding: 12px 16px; border-bottom: 1px solid var(--border); }
   thead th:not(:first-child), tbody td:not(:first-child) { text-align: right; }
+  /* The Coin column's cells use a flex layout (.coin-cell) that always renders
+     left-aligned regardless of text-align, so its header needs to match —
+     otherwise "COIN" visibly drifts right of the coin rows beneath it. */
+  thead th:nth-child(2) { text-align: left; }
 
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s ease, box-shadow 0.12s ease; }
   tbody tr:last-child { border-bottom: none; }
@@ -409,7 +413,7 @@
     border: 5px solid transparent;
     border-top-color: #0d1117;
   }
-    .signal-badge:hover .signal-tooltip {
+  .signal-badge:hover .signal-tooltip {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
@@ -466,7 +470,27 @@
     .detail-header { flex-direction: column; align-items: flex-start; gap: 12px; }
   }
 
-  /* ---------- Right column: news ---------- */
+  /* ---------- Contract Address card ---------- */
+  .contract-warning {
+    font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; margin: 0 0 14px;
+    padding: 10px 12px; background: rgba(240,169,78,0.08);
+    border: 1px solid rgba(240,169,78,0.25); border-radius: 8px;
+  }
+  .contract-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .contract-row:last-child { border-bottom: none; }
+  .contract-chain { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); width: 100px; flex-shrink: 0; }
+  .contract-addr { flex: 1; font-size: 0.84rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contract-copy-btn {
+    font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft);
+    border: 1px solid rgba(124,92,255,0.4); border-radius: 6px; padding: 5px 10px; cursor: pointer;
+    flex-shrink: 0; transition: background 0.15s ease;
+  }
+  .contract-copy-btn:hover { background: rgba(124,92,255,0.3); }
+  .contract-copy-btn.copied { color: var(--up); background: var(--up-soft); border-color: rgba(61,220,132,0.4); }
+
+  @media (max-width: 720px) {
+    .contract-chain { width: 76px; font-size: 0.72rem; }
+  }
 
   /* ---------- Right column: news ---------- */
   .right-col { position: sticky; top: 74px; }

@@ -116,7 +116,7 @@ function signalBadgeHTML(coin) {
   const sourceHTML = sig.source
     ? `<a href="${sig.source_link || "#"}" target="_blank" rel="noopener">${sig.source}</a>`
     : "none found";
-    return `
+  return `
     <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}
       <div class="signal-tooltip">
         <div class="tt-reason">${sig.reason}</div>
@@ -157,7 +157,7 @@ function renderTable() {
     const pinned = watchlist.includes(coin.id);
     return `
       <tr data-id="${coin.id}">
-        <td class="watch-cell">
+        <td class="watch-cell"><button class="watch-star ${pinned ? "pinned" : ""}" data-id="${coin.id}" title="${pinned ? "In your watchlist" : "Add to watchlist"}">&#9733;</button></td>
         <td><div class="coin-cell">${coinDotHTML(coin)}<span class="coin-name">${coin.name}</span><span class="coin-sym">${(coin.symbol || "").toUpperCase()}</span></div></td>
         <td class="price mono">${formatPrice(coin.current_price)}</td>
         <td class="cap-vol mono">${formatCap(coin.market_cap)}</td>
@@ -486,9 +486,6 @@ document.addEventListener("click", (e) => {
 });
 
 // ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Coin detail page (/coin/<id>) — a dedicated, shareable breakdown of exactly
 // why a coin got the Signal it did: the real volume math plus the matching
 // (or missing) news coverage, not just the short tooltip version.
@@ -549,6 +546,8 @@ function renderCoinDetail(coin) {
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
 
   document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
+
+  renderContractCard(coin);
 }
 
 function renderCoinNotFound(id) {
@@ -559,6 +558,74 @@ function renderCoinNotFound(id) {
       <p class="loading-row">Couldn't find a coin matching "${id}". It may not be in our top-cap list, or the id in the link is off.</p>
     </div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Contract Address card — the Axiom/Fomo-style verification block. A coin's
+// name or ticker can be spoofed by copycat tokens, but its on-chain contract
+// address is the one thing that can't be faked, so we show it prominently
+// with a one-click copy, right on the coin's detail page.
+// ---------------------------------------------------------------------------
+const CHAIN_LABELS = {
+  ethereum: "Ethereum",
+  "binance-smart-chain": "BNB Chain",
+  "polygon-pos": "Polygon",
+  solana: "Solana",
+  "arbitrum-one": "Arbitrum",
+  "optimistic-ethereum": "Optimism",
+  avalanche: "Avalanche",
+  fantom: "Fantom",
+  base: "Base",
+  tron: "TRON",
+  "the-open-network": "TON",
+};
+
+function formatChainName(slug) {
+  if (CHAIN_LABELS[slug]) return CHAIN_LABELS[slug];
+  return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function truncateAddr(addr) {
+  if (addr.length <= 16) return addr;
+  return addr.slice(0, 8) + "…" + addr.slice(-6);
+}
+
+function renderContractCard(coin) {
+  const body = document.getElementById("detailContractBody");
+  if (!body) return;
+  const platforms = coin.platforms || {};
+  const entries = Object.entries(platforms);
+
+  if (entries.length === 0) {
+    body.innerHTML = `<p class="loading-row">${coin.name} is a native coin, not a token on another chain — there's no contract address to verify here.</p>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <p class="contract-warning">Always double-check this address before pasting it into a wallet or DEX — scam tokens can copy a coin's name and logo, but not its contract address.</p>
+    ${entries.map(([chain, addr]) => `
+      <div class="contract-row">
+        <span class="contract-chain">${formatChainName(chain)}</span>
+        <span class="contract-addr mono" title="${addr}">${truncateAddr(addr)}</span>
+        <button class="contract-copy-btn" data-addr="${addr}">Copy</button>
+      </div>`).join("")}
+  `;
+}
+
+document.getElementById("coinDetailView").addEventListener("click", (e) => {
+  const btn = e.target.closest(".contract-copy-btn");
+  if (!btn) return;
+  const addr = btn.dataset.addr;
+  const original = btn.textContent;
+  const reset = () => { btn.textContent = original; btn.classList.remove("copied"); };
+  navigator.clipboard.writeText(addr).then(() => {
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(reset, 1500);
+  }).catch(() => {
+    btn.textContent = "Copy failed";
+    setTimeout(reset, 1500);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Init — routes to either the live dashboard or a single coin's detail page

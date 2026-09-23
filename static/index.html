@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sift</title>
+<title>Sift — Crypto Signal, Not Noise</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
@@ -22,7 +22,7 @@
     </div>
   </nav>
 
-    <div class="layout" id="dashboardView">
+  <div class="layout" id="dashboardView">
 
     <!-- LEFT: watchlist, market stats, noise alert, top movers -->
     <aside class="left-col">
@@ -118,7 +118,7 @@
       </div>
     </aside>
 
-    </div>
+  </div>
 
   <!-- Per-coin Signal breakdown page (shown instead of the dashboard when the
        URL is /coin/<id> — see renderRoute() in script.js) -->
@@ -137,6 +137,11 @@
         </div>
       </div>
       <div id="detailBadgeWrap"></div>
+    </div>
+
+    <div class="card detail-contract" id="detailContractCard">
+      <p class="card-title">Contract Address</p>
+      <div id="detailContractBody"><p class="loading-row">Loading&hellip;</p></div>
     </div>
 
     <div class="card detail-breakdown">
