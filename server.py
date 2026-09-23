@@ -22,8 +22,13 @@ cached_global = {}      # total market cap / volume / btc dominance, from CoinGe
 NEWS_SOURCES = [
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
     ("Cointelegraph", "https://cointelegraph.com/rss"),
+    ("The Block", "https://www.theblock.co/rss.xml"),
+    ("Decrypt", "https://decrypt.co/feed"),
+    ("CryptoSlate", "https://cryptoslate.com/feed/"),
+    ("Bitcoin Magazine", "https://bitcoinmagazine.com/feed"),
+    ("NewsBTC", "https://www.newsbtc.com/feed/"),
+    ("CryptoPotato", "https://cryptopotato.com/feed/"),
 ]
-
 # ---------------------------------------------------------------------------
 # Signal Score: Validated / Mixed / Unvalidated
 #
@@ -167,7 +172,7 @@ def fetch_news():
     all_articles.sort(key=lambda article: article["published_parsed"], reverse=True)
 
     cached_news = []
-    for article in all_articles[:15]:
+    for article in all_articles[:30]:
         cached_news.append({
             "title": article["title"],
             "link": article["link"],
