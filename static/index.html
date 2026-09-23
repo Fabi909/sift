@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sift — Crypto Signal, Not Noise</title>
+<title>Sift</title>
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M3 4H23L15.5 13.5V20L10.5 22.5V13.5L3 4Z' fill='%230f0f0f' stroke='%23f0a94e' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
 
@@ -22,7 +22,7 @@
     </div>
   </nav>
 
-  <div class="layout">
+    <div class="layout" id="dashboardView">
 
     <!-- LEFT: watchlist, market stats, noise alert, top movers -->
     <aside class="left-col">
@@ -118,6 +118,61 @@
       </div>
     </aside>
 
+    </div>
+
+  <!-- Per-coin Signal breakdown page (shown instead of the dashboard when the
+       URL is /coin/<id> — see renderRoute() in script.js) -->
+  <div class="detail-view" id="coinDetailView" style="display:none">
+    <a href="/" class="detail-back">&larr; Back to dashboard</a>
+
+    <div class="card detail-header">
+      <div class="detail-header-left">
+        <div id="detailCoinDot"></div>
+        <div>
+          <div class="detail-name-row">
+            <span class="detail-name" id="detailName">&mdash;</span>
+            <span class="detail-sym" id="detailSym"></span>
+          </div>
+          <div class="detail-price mono" id="detailPrice">&mdash;</div>
+        </div>
+      </div>
+      <div id="detailBadgeWrap"></div>
+    </div>
+
+    <div class="card detail-breakdown">
+      <p class="card-title">Signal Breakdown</p>
+      <p class="detail-reason" id="detailReason">&mdash;</p>
+
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">24h Volume</span>
+        <span class="detail-metric-value mono" id="detailVolume">&mdash;</span>
+      </div>
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">Market Cap</span>
+        <span class="detail-metric-value mono" id="detailMcap">&mdash;</span>
+      </div>
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">Volume / Market Cap</span>
+        <span class="detail-metric-value mono" id="detailRatio">&mdash;</span>
+      </div>
+
+      <div class="detail-ratio-bar">
+        <div class="detail-ratio-track">
+          <div class="detail-ratio-fill" id="detailRatioFill"></div>
+          <div class="detail-ratio-threshold" id="detailThresholdLow" title="Below this, trading is considered thin"></div>
+          <div class="detail-ratio-threshold high" id="detailThresholdHigh" title="Above this, volume is considered strong"></div>
+        </div>
+        <div class="detail-ratio-labels">
+          <span>Thin trading</span>
+          <span>Strong activity</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card detail-coverage">
+      <p class="card-title">Matching Coverage</p>
+      <div id="detailNewsCard"><p class="loading-row">Loading&hellip;</p></div>
+    </div>
   </div>
 
   <div class="upgrade-overlay" id="upgradeOverlay">

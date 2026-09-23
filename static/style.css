@@ -409,11 +409,64 @@
     border: 5px solid transparent;
     border-top-color: #0d1117;
   }
-  .signal-badge:hover .signal-tooltip {
+    .signal-badge:hover .signal-tooltip {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
   }
+
+  .tt-more {
+    font-size: 0.66rem; color: var(--accent); font-weight: 700;
+    padding-top: 7px; margin-top: 7px; border-top: 1px solid var(--border);
+  }
+
+  tbody tr[data-id] { cursor: pointer; }
+
+  /* ---------- Coin detail page (/coin/<id>) ---------- */
+  .detail-view { max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; }
+  .detail-back { display: inline-block; color: var(--text-dim); font-size: 0.85rem; text-decoration: none; margin-bottom: 18px; transition: color 0.15s ease; }
+  .detail-back:hover { color: var(--text); }
+
+  .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .detail-header-left { display: flex; align-items: center; gap: 14px; }
+  .coin-dot.lg { width: 48px; height: 48px; font-size: 1.1rem; }
+  .detail-name-row { display: flex; align-items: baseline; gap: 8px; }
+  .detail-name { font-size: 1.15rem; font-weight: 800; }
+  .detail-sym { color: var(--text-faint); font-size: 0.85rem; }
+  .detail-price { font-size: 1rem; color: var(--text-dim); margin-top: 2px; }
+
+  .signal-badge.lg { padding: 7px 14px; font-size: 0.8rem; }
+
+  .detail-breakdown, .detail-coverage { margin-bottom: 16px; }
+  .detail-reason { font-size: 0.92rem; color: var(--text); margin: 0 0 16px; line-height: 1.5; }
+  .detail-metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .detail-metric-row:last-of-type { border-bottom: none; }
+  .detail-metric-label { font-size: 0.82rem; color: var(--text-dim); }
+  .detail-metric-value { font-size: 0.9rem; font-weight: 700; }
+
+  .detail-ratio-bar { margin-top: 18px; }
+  .detail-ratio-track {
+    position: relative; height: 8px; border-radius: 4px;
+    background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .detail-ratio-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--down), #ffc94d, var(--up));
+    width: 0%; transition: width 0.3s ease;
+  }
+  .detail-ratio-threshold {
+    position: absolute; top: -3px; width: 2px; height: 14px;
+    background: var(--text-faint); left: 0%;
+  }
+  .detail-ratio-threshold.high { background: var(--text-dim); }
+  .detail-ratio-labels { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-faint); margin-top: 6px; }
+
+  @media (max-width: 720px) {
+    .detail-view { padding: 20px 16px 48px; }
+    .detail-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+
+  /* ---------- Right column: news ---------- */
 
   /* ---------- Right column: news ---------- */
   .right-col { position: sticky; top: 74px; }

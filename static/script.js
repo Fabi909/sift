@@ -116,11 +116,12 @@ function signalBadgeHTML(coin) {
   const sourceHTML = sig.source
     ? `<a href="${sig.source_link || "#"}" target="_blank" rel="noopener">${sig.source}</a>`
     : "none found";
-  return `
+    return `
     <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}
       <div class="signal-tooltip">
         <div class="tt-reason">${sig.reason}</div>
         <div class="tt-source">Source: ${sourceHTML}</div>
+        <div class="tt-more">Click for full breakdown &rarr;</div>
       </div>
     </span>`;
 }
@@ -155,8 +156,8 @@ function renderTable() {
   tbody.innerHTML = coins.map(coin => {
     const pinned = watchlist.includes(coin.id);
     return `
-      <tr>
-        <td class="watch-cell"><button class="watch-star ${pinned ? "pinned" : ""}" data-id="${coin.id}" title="${pinned ? "In your watchlist" : "Add to watchlist"}">&#9733;</button></td>
+      <tr data-id="${coin.id}">
+        <td class="watch-cell">
         <td><div class="coin-cell">${coinDotHTML(coin)}<span class="coin-name">${coin.name}</span><span class="coin-sym">${(coin.symbol || "").toUpperCase()}</span></div></td>
         <td class="price mono">${formatPrice(coin.current_price)}</td>
         <td class="cap-vol mono">${formatCap(coin.market_cap)}</td>
@@ -422,7 +423,10 @@ async function fetchNewsList() {
 // ---------------------------------------------------------------------------
 document.getElementById("coinTableBody").addEventListener("click", (e) => {
   const btn = e.target.closest(".watch-star");
-  if (btn) toggleWatch(btn.dataset.id);
+  if (btn) { toggleWatch(btn.dataset.id); return; }
+  if (e.target.closest("a")) return; // source link inside the Signal tooltip — let it open normally
+  const row = e.target.closest("tr[data-id]");
+  if (row) navigateToCoin(row.dataset.id);
 });
 
 document.getElementById("watchlistList").addEventListener("click", (e) => {
@@ -484,7 +488,83 @@ document.addEventListener("click", (e) => {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
-function init() {
+// ---------------------------------------------------------------------------
+// Coin detail page (/coin/<id>) — a dedicated, shareable breakdown of exactly
+// why a coin got the Signal it did: the real volume math plus the matching
+// (or missing) news coverage, not just the short tooltip version.
+// ---------------------------------------------------------------------------
+function navigateToCoin(id) {
+  window.location.href = "/coin/" + encodeURIComponent(id);
+}
+
+async function initCoinDetail(id) {
+  try {
+    const res = await fetch("/api/prices");
+    const coins = await res.json();
+    const coin = coins.find(c => c.id === id);
+    if (!coin) { renderCoinNotFound(id); return; }
+    renderCoinDetail(coin);
+  } catch (err) {
+    console.error("Failed to load coin detail", err);
+    renderCoinNotFound(id);
+  }
+}
+
+function renderCoinDetail(coin) {
+  const sig = coin.signal || {};
+  const status = sig.status || "unvalidated";
+  const label = SIGNAL_LABELS[status] || "Unvalidated";
+
+  document.getElementById("detailCoinDot").innerHTML = coinDotHTML(coin, "lg");
+  document.getElementById("detailName").textContent = coin.name;
+  document.getElementById("detailSym").textContent = (coin.symbol || "").toUpperCase();
+  document.getElementById("detailPrice").textContent = formatPrice(coin.current_price);
+  document.getElementById("detailBadgeWrap").innerHTML =
+    `<span class="signal-badge lg ${status}"><span class="signal-dot"></span>${label}</span>`;
+  document.getElementById("detailReason").textContent = sig.reason || "No signal computed yet.";
+
+  const volume = sig.volume ?? coin.total_volume;
+  const marketCap = sig.market_cap ?? coin.market_cap;
+  document.getElementById("detailVolume").textContent = formatCap(volume);
+  document.getElementById("detailMcap").textContent = formatCap(marketCap);
+
+  const ratioPct = (sig.vol_ratio ?? 0) * 100;
+  const lowPct = (sig.threshold_low ?? 0.02) * 100;
+  const highPct = (sig.threshold_high ?? 0.08) * 100;
+  document.getElementById("detailRatio").textContent = ratioPct.toFixed(2) + "%";
+
+  // Bar scale caps at 15% so the two threshold markers stay visible even
+  // though most coins fall well under that.
+  const barMax = 15;
+  document.getElementById("detailRatioFill").style.width = Math.min(100, (ratioPct / barMax) * 100) + "%";
+  document.getElementById("detailThresholdLow").style.left = Math.min(100, (lowPct / barMax) * 100) + "%";
+  document.getElementById("detailThresholdHigh").style.left = Math.min(100, (highPct / barMax) * 100) + "%";
+
+  const newsCard = document.getElementById("detailNewsCard");
+  newsCard.innerHTML = sig.source
+    ? `<a class="news-card" href="${sig.source_link || "#"}" target="_blank" rel="noopener">
+         <div class="news-title">${sig.source_title || "Matching article"}</div>
+         <div class="news-meta"><span class="news-source">${sig.source}</span></div>
+       </a>`
+    : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
+
+  document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
+}
+
+function renderCoinNotFound(id) {
+  document.getElementById("coinDetailView").innerHTML = `
+    <a href="/" class="detail-back">&larr; Back to dashboard</a>
+    <div class="card" style="margin-top:16px;">
+      <p class="card-title">Not found</p>
+      <p class="loading-row">Couldn't find a coin matching "${id}". It may not be in our top-cap list, or the id in the link is off.</p>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Init — routes to either the live dashboard or a single coin's detail page
+// based on the URL, since both share this one script.js / index.html.
+// ---------------------------------------------------------------------------
+function initDashboard() {
   fetchAllCoinsIndex();
   fetchLivePrices();
   fetchGlobalStats();
@@ -494,6 +574,17 @@ function init() {
   setInterval(fetchAllCoinsIndex, 60000);
   setInterval(fetchGlobalStats, 60000);
   setInterval(fetchNewsList, 300000);
+}
+
+function init() {
+  const match = location.pathname.match(/^\/coin\/([^/]+)/);
+  if (match) {
+    document.getElementById("dashboardView").style.display = "none";
+    document.getElementById("coinDetailView").style.display = "block";
+    initCoinDetail(decodeURIComponent(match[1]));
+  } else {
+    initDashboard();
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);

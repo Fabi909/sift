@@ -96,6 +96,12 @@ def compute_signal(coin, news_list):
         "reason": reason,
         "source": matched["source"] if matched else None,
         "source_link": matched["link"] if matched else None,
+        "source_title": matched["title"] if matched else None,
+        "volume": volume,
+        "market_cap": market_cap,
+        "vol_ratio": vol_ratio,
+        "threshold_high": HIGH_VOLUME_RATIO,
+        "threshold_low": LOW_VOLUME_RATIO,
     }
 
 
@@ -204,6 +210,14 @@ def news_refresh_loop():
 
 @app.route("/")
 def home():
+    return app.send_static_file("index.html")
+
+
+@app.route("/coin/<coin_id>")
+def coin_detail_page(coin_id):
+    # Same single-page app shell — script.js reads the URL and renders the
+    # per-coin breakdown view instead of the dashboard. This route's only job
+    # is making sure a direct link or a page refresh on /coin/<id> works.
     return app.send_static_file("index.html")
 
 
