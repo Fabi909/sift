@@ -250,10 +250,18 @@
 
   .track-bucket { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 0.82rem; }
   /* Same min-width:0 truncation pattern used everywhere else in this sidebar —
-     the label is the flexible piece, the value/count are fixed and never shrink. */
-  .track-bucket-label { flex: 1 1 auto; min-width: 0; font-weight: 600; position: relative; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+     the label is the flexible piece, the value/count are fixed and never shrink.
+     Unlike .mover-left/.sugg-left (where the dot and the truncated text are
+     separate elements, so the fix there was just removing overflow:hidden from
+     the shared wrapper), this dot lives INSIDE the same element that needs
+     overflow:hidden for its own text ellipsis — so overflow can't be removed
+     here. Instead the dot is pushed in from left:0 to left:6px (with matching
+     extra padding-left so the text position doesn't shift), leaving 6px of
+     clear space inside the clip box for the dot's glow (box-shadow) to render
+     without getting cut off flush against the left edge. */
+  .track-bucket-label { flex: 1 1 auto; min-width: 0; font-weight: 600; position: relative; padding-left: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .track-bucket-label::before {
-    content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    content: ""; position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
     width: 6px; height: 6px; border-radius: 50%;
   }
   .track-bucket-label.validated::before { background: var(--up); box-shadow: 0 0 6px var(--up); }
