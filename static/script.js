@@ -546,8 +546,6 @@ function renderCoinDetail(coin) {
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
 
   document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
-
-  renderContractCard(coin);
 }
 
 function renderCoinNotFound(id) {
@@ -558,102 +556,6 @@ function renderCoinNotFound(id) {
       <p class="loading-row">Couldn't find a coin matching "${id}". It may not be in our top-cap list, or the id in the link is off.</p>
     </div>`;
 }
-
-// ---------------------------------------------------------------------------
-// Contract Address card — the Axiom/Fomo-style verification block. A coin's
-// name or ticker can be spoofed by copycat tokens, but its on-chain contract
-// address is the one thing that can't be faked, so we show it prominently
-// with a one-click copy, right on the coin's detail page.
-// ---------------------------------------------------------------------------
-const CHAIN_LABELS = {
-  ethereum: "Ethereum",
-  "binance-smart-chain": "BNB Chain",
-  "polygon-pos": "Polygon",
-  solana: "Solana",
-  "arbitrum-one": "Arbitrum",
-  "optimistic-ethereum": "Optimism",
-  avalanche: "Avalanche",
-  fantom: "Fantom",
-  base: "Base",
-  tron: "TRON",
-  "the-open-network": "TON",
-};
-
-function formatChainName(slug) {
-  if (CHAIN_LABELS[slug]) return CHAIN_LABELS[slug];
-  return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-function truncateAddr(addr) {
-  if (addr.length <= 16) return addr;
-  return addr.slice(0, 8) + "…" + addr.slice(-6);
-}
-
-function contractRowHTML(chain, addr, tokenLabel) {
-  // tokenLabel is only set for a native coin's wrapped/bridged versions
-  // (e.g. "Ethereum (WBTC)"), so a single flat list can hold several tokens
-  // on the same chain without needing a separate heading row per token.
-  const chainLabel = tokenLabel ? `${formatChainName(chain)} (${tokenLabel})` : formatChainName(chain);
-  return `
-    <div class="contract-row">
-      <span class="contract-chain">${chainLabel}</span>
-      <span class="contract-addr mono" title="${addr}">${truncateAddr(addr)}</span>
-      <button class="contract-copy-btn" data-addr="${addr}">Copy</button>
-    </div>`;
-}
-
-function renderContractCard(coin) {
-  const body = document.getElementById("detailContractBody");
-  if (!body) return;
-  const platforms = coin.platforms || {};
-  const entries = Object.entries(platforms);
-  const wrapped = coin.wrapped || [];
-
-  // Coin is itself a token on other chains (e.g. Tether, most altcoins) —
-  // show its own addresses directly, same as before.
-  if (entries.length > 0) {
-    body.innerHTML = `
-      <p class="contract-warning">Always double-check this address before pasting it into a wallet or DEX — scam tokens can copy a coin's name and logo, but not its contract address.</p>
-      ${entries.map(([chain, addr]) => contractRowHTML(chain, addr)).join("")}
-    `;
-    return;
-  }
-
-  // Native coin (Bitcoin, Ethereum, Solana...) with no address of its own,
-  // but known wrapped/bridged versions exist — show those instead, as one
-  // flat list (chain + which token) rather than a separate heading per token.
-  if (wrapped.length > 0) {
-    const rows = [];
-    wrapped.forEach(w => {
-      Object.entries(w.platforms).forEach(([chain, addr]) => {
-        rows.push(contractRowHTML(chain, addr, w.label));
-      });
-    });
-    body.innerHTML = `
-      <p class="contract-warning">${coin.name} itself is a native coin with no contract address. These are bridged/wrapped versions of ${coin.name} that trade as tokens on other chains — always confirm you're using the right one before you trade.</p>
-      ${rows.join("")}
-    `;
-    return;
-  }
-
-  body.innerHTML = `<p class="loading-row">${coin.name} is a native coin, not a token on another chain — there's no contract address to verify here.</p>`;
-}
-
-document.getElementById("coinDetailView").addEventListener("click", (e) => {
-  const btn = e.target.closest(".contract-copy-btn");
-  if (!btn) return;
-  const addr = btn.dataset.addr;
-  const original = btn.textContent;
-  const reset = () => { btn.textContent = original; btn.classList.remove("copied"); };
-  navigator.clipboard.writeText(addr).then(() => {
-    btn.textContent = "Copied!";
-    btn.classList.add("copied");
-    setTimeout(reset, 1500);
-  }).catch(() => {
-    btn.textContent = "Copy failed";
-    setTimeout(reset, 1500);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Init — routes to either the live dashboard or a single coin's detail page

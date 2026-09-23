@@ -18,7 +18,6 @@ API_KEY = os.getenv("COINGECKO_API_KEY")
 cached_coins = []       # every coin CoinGecko gives us, each with a "signal" field attached
 cached_news = []
 cached_global = {}      # total market cap / volume / btc dominance, from CoinGecko's /global
-cached_platforms = {}   # coin_id -> { chain_slug: contract_address, ... }
 
 NEWS_SOURCES = [
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
@@ -115,73 +114,6 @@ def compute_all_signals():
         coin["signal"] = compute_signal(coin, cached_news)
 
 
-# ---------------------------------------------------------------------------
-# Contract addresses — the Axiom/Fomo-style verification data. A coin's NAME
-# can be spoofed by a copycat token, but its on-chain contract/mint address
-# is the one thing a scam can't copy. CoinGecko's /coins/list?include_platform
-# returns every coin's addresses across every chain in a single call, so we
-# fetch it once and cache it separately — addresses essentially never change,
-# so this refreshes on a much longer interval than prices/news.
-# ---------------------------------------------------------------------------
-def fetch_coin_platforms():
-    global cached_platforms
-    response = requests.get(
-        "https://api.coingecko.com/api/v3/coins/list",
-        params={"include_platform": "true", "x_cg_demo_api_key": API_KEY}
-    )
-    if response.status_code != 200:
-        print("Platform list fetch failed - status:", response.status_code)
-        return
-    data = response.json()
-    platforms_by_id = {}
-    for entry in data:
-        platforms = entry.get("platforms") or {}
-        # Some entries list a chain with an empty-string address — drop those.
-        cleaned = {chain: addr for chain, addr in platforms.items() if addr}
-        if cleaned:
-            platforms_by_id[entry["id"]] = cleaned
-    cached_platforms = platforms_by_id
-    print("Platform cache refreshed. Coins with contract addresses:", len(cached_platforms))
-
-
-# A handful of major coins (Bitcoin, Ethereum, Solana...) are native assets
-# with no contract address of their own — but people coming from an
-# Axiom/Fomo-style terminal are often really looking for one of their
-# wrapped/bridged representations (WBTC, cbBTC, WETH, ...), which DO have
-# contract addresses since they're issued as tokens on other chains. These
-# CoinGecko ids were confirmed by hand against coingecko.com; each is a
-# distinct, separately-priced asset from the native coin, just pegged ~1:1.
-WRAPPED_COIN_MAP = {
-    "bitcoin": [
-        ("wrapped-bitcoin", "WBTC"),
-        ("coinbase-wrapped-btc", "cbBTC"),
-        ("wrapped-btc-wormhole", "Wormhole WBTC"),
-    ],
-    "ethereum": [
-        ("weth", "WETH"),
-    ],
-    "solana": [
-        ("wrapped-sol-2", "WSOL"),
-    ],
-}
-
-
-def attach_platforms():
-    """Merge cached_platforms onto every coin currently in cached_coins, plus
-    — for the majors in WRAPPED_COIN_MAP — the addresses of their known
-    wrapped/bridged tokens, labeled so the UI can be clear these aren't the
-    native coin itself. Called after either cache refreshes, since either one
-    can outrun the other on the initial load / different refresh intervals."""
-    for coin in cached_coins:
-        coin["platforms"] = cached_platforms.get(coin["id"], {})
-        wrapped = []
-        for wrapped_id, label in WRAPPED_COIN_MAP.get(coin["id"], []):
-            addrs = cached_platforms.get(wrapped_id)
-            if addrs:
-                wrapped.append({"label": label, "platforms": addrs})
-        coin["wrapped"] = wrapped
-
-
 def fetch_all_coins():
     global cached_coins
     all_coins = []
@@ -207,7 +139,6 @@ def fetch_all_coins():
 
     cached_coins = all_coins
     compute_all_signals()
-    attach_platforms()
     print("Price cache refreshed. Total coins cached:", len(cached_coins))
 
 
@@ -278,13 +209,6 @@ def news_refresh_loop():
         fetch_news()
 
 
-def platforms_refresh_loop():
-    while True:
-        time.sleep(21600)  # 6h — contract addresses essentially never change
-        fetch_coin_platforms()
-        attach_platforms()
-
-
 @app.route("/")
 def home():
     return app.send_static_file("index.html")
@@ -319,13 +243,10 @@ def get_global():
 fetch_all_coins()
 fetch_global()
 fetch_news()
-fetch_coin_platforms()
-attach_platforms()
 
 threading.Thread(target=price_refresh_loop, daemon=True).start()
 threading.Thread(target=global_refresh_loop, daemon=True).start()
 threading.Thread(target=news_refresh_loop, daemon=True).start()
-threading.Thread(target=platforms_refresh_loop, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
