@@ -431,7 +431,14 @@
   .coin-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .coin-sym { color: var(--text-faint); font-size: 0.8rem; margin-left: 4px; flex-shrink: 0; }
 
-  .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  /* No overflow:hidden here on purpose — the name truncation itself lives on
+     .mover-name/.sugg-name (each has its own overflow:hidden + ellipsis), so
+     this container doesn't need to clip anything. It used to have
+     overflow:hidden too, which clipped the noise/quiet dot's glow (a
+     box-shadow that spills slightly outside the dot's own box) flush against
+     the left edge since the dot is the first child at x:0 — making it look
+     cut off on the left instead of glowing evenly on both sides. */
+  .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
 
   .price { font-weight: 600; }
   .cap-vol { color: var(--text-dim); }
