@@ -24,7 +24,7 @@
 
   <div class="layout" id="dashboardView">
 
-    <!-- LEFT: watchlist, noise alert, quiet coverage, top movers -->
+    <!-- LEFT: watchlist, market stats, noise alert, top movers -->
     <aside class="left-col">
       <div class="card">
         <div class="card-header-row">
@@ -68,6 +68,16 @@
           </div>
         </div>
         <div class="mover-list" id="moverList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">Signal Track Record</p>
+        </div>
+        <p class="track-record-sub">Average price change since each coin's Signal was recorded, grouped by what the Signal said at the time &mdash; the check on whether Validated calls actually hold up better than Unvalidated ones.</p>
+        <div id="trackRecordBody">
           <p class="loading-row">Loading&hellip;</p>
         </div>
       </div>

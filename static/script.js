@@ -337,6 +337,51 @@ function renderQuietCoverage() {
 }
 
 // ---------------------------------------------------------------------------
+// Render: Signal Track Record — the credibility check on the Signal system
+// itself. The server periodically snapshots every coin's Signal status; this
+// renders the comparison of each snapshot's price to the coin's price now,
+// bucketed by what the Signal said at snapshot time. If "Validated" calls
+// hold up better than "Unvalidated" ones over time, that's the proof the
+// badge means something rather than just being a label.
+// ---------------------------------------------------------------------------
+function trackRecordBucketHTML(status, bucket) {
+  if (!bucket) return "";
+  const up = bucket.avg_change_pct >= 0;
+  return `
+    <div class="track-bucket">
+      <span class="track-bucket-label ${status}">${SIGNAL_LABELS[status]}</span>
+      <span class="track-bucket-value ${up ? "up" : "down"}">${up ? "+" : ""}${bucket.avg_change_pct.toFixed(2)}%</span>
+      <span class="track-bucket-count">(${bucket.count})</span>
+    </div>`;
+}
+
+function renderTrackRecord(data) {
+  const box = document.getElementById("trackRecordBody");
+  if (!box) return;
+
+  if (!data || !data.ready) {
+    const days = data ? data.oldest_snapshot_days : 0;
+    box.innerHTML = `<p class="loading-row">Building track record&hellip; Signal history needs a few days to accumulate before a comparison is meaningful${days ? ` (${days}d of history so far)` : ""}.</p>`;
+    return;
+  }
+
+  box.innerHTML = data.windows.map(w => `
+    <div class="track-window">
+      <div class="track-window-label">${w.days} DAYS LATER</div>
+      ${["validated", "mixed", "unvalidated"].map(status => trackRecordBucketHTML(status, w[status])).join("")}
+    </div>`).join("");
+}
+
+async function fetchTrackRecord() {
+  try {
+    const res = await fetch("/api/track-record");
+    renderTrackRecord(await res.json());
+  } catch (err) {
+    console.error("Failed to load track record", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Render: Watchlist + plan badge/modal
 // ---------------------------------------------------------------------------
 function renderWatchlist() {
@@ -641,10 +686,12 @@ function initDashboard() {
   fetchAllCoinsIndex();
   fetchLivePrices();
   fetchNewsList();
+  fetchTrackRecord();
 
   setInterval(fetchLivePrices, 3000);
   setInterval(fetchAllCoinsIndex, 60000);
   setInterval(fetchNewsList, 300000);
+  setInterval(fetchTrackRecord, 300000); // changes slowly — snapshots are only taken every few hours
 }
 
 function init() {

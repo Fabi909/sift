@@ -7,6 +7,7 @@ import time
 import re
 import feedparser
 import os
+import sqlite3
 
 load_dotenv()
 
@@ -18,6 +19,13 @@ API_KEY = os.getenv("COINGECKO_API_KEY")
 cached_coins = []       # every coin CoinGecko gives us, each with a "signal" field attached
 cached_news = []
 cached_global = {}      # total market cap / volume / btc dominance, from CoinGecko's /global
+
+# Overridable so test_server.py can point at a throwaway file instead of the
+# real one — see the SIGNAL_HISTORY_DB env var there.
+DB_PATH = os.getenv(
+    "SIGNAL_HISTORY_DB",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "signal_history.db")
+)
 
 NEWS_SOURCES = [
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
@@ -90,7 +98,15 @@ def compute_signal(coin, news_list):
         reason = "Coverage matches, but volume doesn't fully confirm the move"
     else:
         status = "unvalidated"
-        reason = "Move isn't backed by volume, and no matching coverage found"
+        # has_news can still be true here (real coverage exists, but volume is
+        # too thin to call it backed) — the reason text needs to say so, since
+        # this is exactly the case the "Quiet Coverage" panel on the dashboard
+        # surfaces, and an inaccurate reason here would undercut it.
+        reason = (
+            "Coverage exists, but volume is too thin to confirm the move"
+            if has_news else
+            "Move isn't backed by volume, and no matching coverage found"
+        )
 
     return {
         "status": status,
@@ -112,6 +128,146 @@ def compute_all_signals():
     whenever prices or news change."""
     for coin in cached_coins:
         coin["signal"] = compute_signal(coin, cached_news)
+
+
+# ---------------------------------------------------------------------------
+# Signal Track Record
+#
+# The credibility question underneath the whole product: do "Validated"
+# calls actually go on to perform better than "Unvalidated" ones, or is the
+# badge just noise? To answer that we need to remember what a coin's signal
+# *was* at some point in the past, then compare its price then to its price
+# now. That's a time-series problem the in-memory caches above can't answer
+# (they only ever hold "right now"), so this gets its own small SQLite table
+# that survives independently of the coin/news caches.
+#
+# A snapshot is taken periodically (every few hours) for the top coins by
+# market cap — not all ~5000, since most of those are thin enough that
+# nobody's watching them and the table would grow forever for no benefit.
+# ---------------------------------------------------------------------------
+SNAPSHOT_TOP_N = 500
+SNAPSHOT_RETENTION_DAYS = 120
+TRACK_RECORD_WINDOWS_DAYS = [3, 7, 14, 30]
+TRACK_RECORD_MIN_SAMPLES = 3   # per status, per window, before we'll show it
+
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signal_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coin_id TEXT NOT NULL,
+            symbol TEXT,
+            name TEXT,
+            status TEXT NOT NULL,
+            price REAL,
+            market_cap REAL,
+            ts INTEGER NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_coin_ts ON signal_snapshots (coin_id, ts)")
+    conn.commit()
+    conn.close()
+
+
+def snapshot_signals():
+    """Record the current signal + price for the top N coins by market cap.
+    Called on a loop, and once at startup if we haven't snapshotted recently."""
+    if not cached_coins:
+        return
+
+    now = int(time.time())
+    top = sorted(cached_coins, key=lambda c: c.get("market_cap") or 0, reverse=True)[:SNAPSHOT_TOP_N]
+    rows = [
+        (c["id"], c.get("symbol"), c.get("name"), c["signal"]["status"], c.get("current_price"), c.get("market_cap"), now)
+        for c in top
+        if c.get("signal") and c.get("current_price") is not None
+    ]
+    if not rows:
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.executemany(
+        "INSERT INTO signal_snapshots (coin_id, symbol, name, status, price, market_cap, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rows
+    )
+    conn.execute("DELETE FROM signal_snapshots WHERE ts < ?", (now - SNAPSHOT_RETENTION_DAYS * 86400,))
+    conn.commit()
+    conn.close()
+    print(f"Signal snapshot recorded: {len(rows)} coins.")
+
+
+def snapshot_on_start_if_stale():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT MAX(ts) FROM signal_snapshots").fetchone()
+    conn.close()
+    last_ts = row[0] if row else None
+    if not last_ts or (time.time() - last_ts) > 3600:
+        snapshot_signals()
+
+
+def compute_track_record():
+    """For each window (3/7/14/30 days), find each coin's most recent snapshot
+    at least that old, bucket those snapshots by the status they had back
+    then, and compare that snapshot's price to the coin's current price.
+    A window is only included once we actually have snapshots that old, and
+    a status bucket within it is only included once it has enough samples
+    to not just be noise from one or two coins."""
+    now = int(time.time())
+    current_price_by_id = {c["id"]: c.get("current_price") for c in cached_coins}
+
+    conn = sqlite3.connect(DB_PATH)
+    oldest_row = conn.execute("SELECT MIN(ts) FROM signal_snapshots").fetchone()
+    oldest_ts = oldest_row[0] if oldest_row else None
+    oldest_age_days = round((now - oldest_ts) / 86400, 1) if oldest_ts else 0
+
+    windows = []
+    for days in TRACK_RECORD_WINDOWS_DAYS:
+        cutoff = now - days * 86400
+        if not oldest_ts or oldest_ts > cutoff:
+            continue  # no snapshot exists that's old enough yet
+
+        # Most recent snapshot per coin, among snapshots old enough for this window.
+        rows = conn.execute("""
+            SELECT coin_id, status, price FROM (
+                SELECT coin_id, status, price, ts,
+                       ROW_NUMBER() OVER (PARTITION BY coin_id ORDER BY ts DESC) AS rn
+                FROM signal_snapshots
+                WHERE ts <= ?
+            ) WHERE rn = 1
+        """, (cutoff,)).fetchall()
+
+        buckets = {"validated": [], "mixed": [], "unvalidated": []}
+        for coin_id, status, then_price in rows:
+            now_price = current_price_by_id.get(coin_id)
+            if now_price is None or not then_price:
+                continue
+            pct_change = ((now_price - then_price) / then_price) * 100
+            if status in buckets:
+                buckets[status].append(pct_change)
+
+        window_out = {}
+        for status, changes in buckets.items():
+            if len(changes) >= TRACK_RECORD_MIN_SAMPLES:
+                window_out[status] = {
+                    "avg_change_pct": round(sum(changes) / len(changes), 2),
+                    "count": len(changes),
+                }
+        if window_out:
+            windows.append({"days": days, **window_out})
+
+    conn.close()
+    return {
+        "ready": len(windows) > 0,
+        "oldest_snapshot_days": oldest_age_days,
+        "windows": windows,
+    }
+
+
+def snapshot_refresh_loop():
+    while True:
+        time.sleep(6 * 3600)
+        snapshot_signals()
 
 
 def fetch_all_coins():
@@ -240,13 +396,22 @@ def get_global():
     return jsonify(cached_global)
 
 
+@app.route("/api/track-record")
+def get_track_record():
+    return jsonify(compute_track_record())
+
+
 fetch_all_coins()
 fetch_global()
 fetch_news()
 
+init_db()
+snapshot_on_start_if_stale()
+
 threading.Thread(target=price_refresh_loop, daemon=True).start()
 threading.Thread(target=global_refresh_loop, daemon=True).start()
 threading.Thread(target=news_refresh_loop, daemon=True).start()
+threading.Thread(target=snapshot_refresh_loop, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
