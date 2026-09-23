@@ -19,7 +19,22 @@
   }
 
   * { box-sizing: border-box; }
-
+    /* Page-level scrollbar (the one along the very edge of the browser window,
+     as opposed to the internal ones on the left column and news panel below).
+     Styled onto html, since that's what actually scrolls when the page is
+     taller than the viewport. Matches the same family as the ghost scrollbar
+     below, but left visible at its resting tone rather than hover-gated —
+     hovering "the whole page" isn't a meaningful gesture the way hovering a
+     specific card is, so it would just end up looking permanently on anyway. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-glow) transparent;
+  }
+  html::-webkit-scrollbar { width: 8px; }
+  html::-webkit-scrollbar-track { background: transparent; }
+  html::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 10px; }
+  html::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  
   html, body {
     margin: 0;
     padding: 0;
