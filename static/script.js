@@ -622,6 +622,7 @@ async function initCoinDetail(id) {
     const coin = coins.find(c => c.id === id);
     if (!coin) { renderCoinNotFound(id); return; }
     renderCoinDetail(coin);
+    fetchCoinTrackRecord(id);
   } catch (err) {
     console.error("Failed to load coin detail", err);
     renderCoinNotFound(id);
@@ -667,6 +668,66 @@ function renderCoinDetail(coin) {
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
 
   document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
+}
+
+// ---------------------------------------------------------------------------
+// Render: per-coin Signal History — the single-coin version of the Track
+// Record card. Rather than an average across many coins (which needs a
+// minimum sample size to not just be noise), this shows exactly what
+// happened for THIS coin: what its Signal read at each past checkpoint, and
+// what its price has done since. Makes the Signal badge on this one page
+// feel backed by evidence rather than an abstract system-wide claim.
+// ---------------------------------------------------------------------------
+function coinTrackWindowHTML(w) {
+  const up = w.change_pct >= 0;
+  return `
+    <div class="track-bucket">
+      <span class="track-bucket-label ${w.status}">${w.days}d ago: ${SIGNAL_LABELS[w.status]}</span>
+      <span class="track-bucket-value ${up ? "up" : "down"}">${up ? "+" : ""}${w.change_pct.toFixed(2)}%</span>
+    </div>`;
+}
+
+function renderCoinTrackRecord(data) {
+  const box = document.getElementById("coinTrackRecordBody");
+  if (!box) return;
+
+  if (!data || !data.has_history) {
+    box.innerHTML = `<p class="loading-row">No Signal history recorded yet for this coin &mdash; check back in a few days as it accumulates.</p>`;
+    return;
+  }
+
+  const pct = data.status_pct || {};
+  const checkWord = data.total_snapshots === 1 ? "check" : "checks";
+  const breakdownHTML = ["validated", "mixed", "unvalidated"]
+    .filter(s => pct[s] != null)
+    .map(s => `
+      <div class="track-bucket">
+        <span class="track-bucket-label ${s}">${SIGNAL_LABELS[s]}</span>
+        <span class="track-bucket-count">${pct[s]}% of ${data.total_snapshots} ${checkWord} (${data.oldest_snapshot_days}d tracked)</span>
+      </div>`).join("");
+
+  const windowsHTML = data.windows.length
+    ? data.windows.map(coinTrackWindowHTML).join("")
+    : `<p class="loading-row">Not enough history yet to compare price since a past Signal.</p>`;
+
+  box.innerHTML = `
+    <div class="track-window">
+      <div class="track-window-label">SIGNAL READING, OVER TIME</div>
+      ${breakdownHTML}
+    </div>
+    <div class="track-window">
+      <div class="track-window-label">PRICE SINCE THAT SIGNAL</div>
+      ${windowsHTML}
+    </div>`;
+}
+
+async function fetchCoinTrackRecord(id) {
+  try {
+    const res = await fetch(`/api/track-record/${encodeURIComponent(id)}`);
+    renderCoinTrackRecord(await res.json());
+  } catch (err) {
+    console.error("Failed to load coin track record", err);
+  }
 }
 
 function renderCoinNotFound(id) {

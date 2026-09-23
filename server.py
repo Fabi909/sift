@@ -264,6 +264,63 @@ def compute_track_record():
     }
 
 
+def compute_coin_track_record(coin_id):
+    """The single-coin version of the same idea: instead of averaging across
+    many coins (which needs a minimum sample size to mean anything), this
+    just shows exactly what happened for THIS coin — what its Signal read at
+    each past checkpoint, and what its price has done since. No MIN_SAMPLES
+    gate here, since a single coin's own history isn't being used to make a
+    statistical claim, just a factual one ("here's what happened")."""
+    now = int(time.time())
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT status, price, ts FROM signal_snapshots WHERE coin_id = ? ORDER BY ts ASC",
+        (coin_id,)
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return {"has_history": False}
+
+    status_counts = {"validated": 0, "mixed": 0, "unvalidated": 0}
+    for status, price, ts in rows:
+        if status in status_counts:
+            status_counts[status] += 1
+    total = len(rows)
+    status_pct = {
+        status: round((count / total) * 100)
+        for status, count in status_counts.items()
+        if count > 0
+    }
+
+    oldest_age_days = round((now - rows[0][2]) / 86400, 1)
+    current_price = next((c.get("current_price") for c in cached_coins if c["id"] == coin_id), None)
+
+    windows = []
+    if current_price is not None:
+        for days in TRACK_RECORD_WINDOWS_DAYS:
+            cutoff = now - days * 86400
+            # Most recent snapshot for this coin that's at least this old.
+            candidate = None
+            for status, price, ts in reversed(rows):
+                if ts <= cutoff:
+                    candidate = (status, price)
+                    break
+            if not candidate or not candidate[1]:
+                continue
+            status, then_price = candidate
+            pct_change = ((current_price - then_price) / then_price) * 100
+            windows.append({"days": days, "status": status, "change_pct": round(pct_change, 2)})
+
+    return {
+        "has_history": True,
+        "oldest_snapshot_days": oldest_age_days,
+        "total_snapshots": total,
+        "status_pct": status_pct,
+        "windows": windows,
+    }
+
+
 def snapshot_refresh_loop():
     while True:
         time.sleep(6 * 3600)
@@ -399,6 +456,11 @@ def get_global():
 @app.route("/api/track-record")
 def get_track_record():
     return jsonify(compute_track_record())
+
+
+@app.route("/api/track-record/<coin_id>")
+def get_coin_track_record(coin_id):
+    return jsonify(compute_coin_track_record(coin_id))
 
 
 fetch_all_coins()

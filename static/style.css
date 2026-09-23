@@ -557,7 +557,7 @@
 
   .signal-badge.lg { padding: 7px 14px; font-size: 0.8rem; }
 
-  .detail-breakdown, .detail-coverage { margin-bottom: 16px; }
+  .detail-breakdown, .detail-coverage, .detail-track-record { margin-bottom: 16px; }
   .detail-reason { font-size: 0.92rem; color: var(--text); margin: 0 0 16px; line-height: 1.5; }
   .detail-metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .detail-metric-row:last-of-type { border-bottom: none; }
