@@ -24,37 +24,18 @@
 
   <div class="layout" id="dashboardView">
 
-    <!-- LEFT: watchlist, market stats, noise alert, top movers -->
+    <!-- LEFT: watchlist, noise alert, quiet coverage, top movers -->
     <aside class="left-col">
       <div class="card">
         <div class="card-header-row">
           <p class="card-title">My Watchlist</p>
           <span class="watch-count" id="watchCount">Basic</span>
         </div>
+        <div id="signalAlertsList"></div>
         <div id="watchlistList">
           <p class="watchlist-empty">Tap the star on any coin in the table to pin it here for quick, live tracking.</p>
         </div>
         <button class="watch-upgrade-link" id="watchUpgradeLink">See plans &rarr;</button>
-      </div>
-
-      <div class="card">
-        <p class="card-title">Market Overview</p>
-        <div class="stat-row">
-          <span class="stat-label">Market Cap</span>
-          <span class="stat-value mono" id="statMarketCap">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">24h Volume</span>
-          <span class="stat-value mono" id="statVolume">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">BTC Dominance</span>
-          <span class="stat-value mono" id="statBtcDom">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Cap Change (24h)</span>
-          <span class="stat-value mono" id="statCapChange">&mdash;</span>
-        </div>
       </div>
 
       <div class="card">
@@ -63,6 +44,16 @@
           <span class="noise-count" id="noiseCount">0 flagged</span>
         </div>
         <div id="noiseList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">Quiet Coverage</p>
+          <span class="quiet-count" id="quietCount">0 flagged</span>
+        </div>
+        <div id="quietList">
           <p class="loading-row">Loading&hellip;</p>
         </div>
       </div>

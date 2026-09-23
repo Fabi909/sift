@@ -124,13 +124,6 @@
   /* ---------- Left column: market stats ---------- */
   .left-col { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 74px; }
 
-  .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
-  .stat-row:last-child { border-bottom: none; }
-  .stat-label { font-size: 0.8rem; color: var(--text-dim); }
-  .stat-value { font-size: 0.88rem; font-weight: 700; }
-  .stat-value.up { color: var(--up); }
-  .stat-value.down { color: var(--down); }
-
   .fg-gauge { margin-top: 4px; }
   .fg-track { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--down), #ffc94d, var(--up)); position: relative; margin: 10px 0 8px; }
   .fg-marker { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--text); box-shadow: 0 0 8px rgba(255,255,255,0.6); border-radius: 2px; }
@@ -170,6 +163,25 @@
     background: linear-gradient(135deg, rgba(255, 95, 168, 0.18), rgba(155, 77, 255, 0.18) 55%, rgba(122, 31, 77, 0.18));
     border-color: rgba(255, 95, 168, 0.4);
   }
+  /* ---------- Signal-change alerts (inside the Watchlist card) ---------- */
+  .signal-alert {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; margin-bottom: 6px; border-radius: 8px;
+    font-size: 0.76rem; line-height: 1.4;
+  }
+  .signal-alert.up { background: var(--up-soft); border: 1px solid rgba(61,220,132,0.3); color: var(--up); }
+  .signal-alert.down { background: var(--down-soft); border: 1px solid rgba(255,77,109,0.3); color: var(--down); }
+  .signal-alert-text strong { color: var(--text); }
+  .signal-alert-dismiss {
+    background: none; border: none; cursor: pointer; color: inherit;
+    font-size: 0.7rem; opacity: 0.65; padding: 0; flex-shrink: 0; transition: opacity 0.15s ease;
+  }
+  .signal-alert-dismiss:hover { opacity: 1; }
+
+  /* ---------- Quiet Coverage ---------- */
+  .quiet-count { font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(124,92,255,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.02em; }
+  .quiet-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); display: inline-block; margin-right: 8px; }
+
   .watchlist-empty { font-size: 0.8rem; color: var(--text-faint); padding: 10px 0; line-height: 1.5; }
   .watch-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .watch-row:last-child { border-bottom: none; }

@@ -24,12 +24,17 @@ const TIERS = {
 let allCoins = [];
 let liveCoins = [];
 let coinsById = new Map();
-let globalStats = {};
 let currentFilter = null;   // coin id when the table is filtered to a search result
 let activeTf = "24h";       // Top Movers timeframe
 
 let watchlist = getWatchlist();
 let userTier = getTier();
+
+// signalBaseline remembers the last Signal status we saw for each watchlisted
+// coin (persisted, so it survives a reload); signalAlerts is the current,
+// session-only list of un-dismissed "your coin's Signal changed" notices.
+let signalBaseline = getSignalBaseline();
+let signalAlerts = [];
 
 // ---------------------------------------------------------------------------
 // localStorage (watchlist + plan tier)
@@ -54,6 +59,15 @@ function getWatchlist() {
 }
 function setWatchlist(list) {
   try { localStorage.setItem("sift_watchlist", JSON.stringify(list)); } catch (e) {}
+}
+function getSignalBaseline() {
+  try {
+    const raw = localStorage.getItem("sift_signal_baseline");
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function setSignalBaseline(obj) {
+  try { localStorage.setItem("sift_signal_baseline", JSON.stringify(obj)); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +250,93 @@ function renderNoiseAlert() {
 }
 
 // ---------------------------------------------------------------------------
+// Signal-change alerts — the thing every other tracker only does for price.
+// A coin's Signal status (Validated/Mixed/Unvalidated) is the actual
+// evidence-backed read on whether a move is real; when a coin on your
+// Watchlist flips between those, that's a materially different, more useful
+// notice than "price moved X%". Entirely client-side: it just diffs each
+// poll's status against the last one we saw, per watchlisted coin.
+// ---------------------------------------------------------------------------
+const SIGNAL_ORDER = { unvalidated: 0, mixed: 1, validated: 2 };
+
+function checkSignalChanges() {
+  watchlist.forEach(id => {
+    const coin = coinsById.get(id);
+    if (!coin || !coin.signal) return;
+    const current = coin.signal.status;
+    const prev = signalBaseline[id];
+    if (prev && prev !== current) {
+      const alreadyPending = signalAlerts.some(a => a.id === id && a.to === current && a.from === prev);
+      if (!alreadyPending) {
+        signalAlerts.unshift({ key: `${id}_${Date.now()}`, id, name: coin.name, from: prev, to: current });
+        signalAlerts = signalAlerts.slice(0, 6); // cap so a busy session doesn't pile these up forever
+      }
+    }
+    signalBaseline[id] = current;
+  });
+  setSignalBaseline(signalBaseline);
+}
+
+function renderSignalAlerts() {
+  const box = document.getElementById("signalAlertsList");
+  if (!box) return;
+  if (signalAlerts.length === 0) { box.innerHTML = ""; return; }
+
+  box.innerHTML = signalAlerts.map(a => {
+    const dir = SIGNAL_ORDER[a.to] > SIGNAL_ORDER[a.from] ? "up" : "down";
+    return `
+      <div class="signal-alert ${dir}" data-key="${a.key}">
+        <span class="signal-alert-text"><strong>${a.name}</strong> ${SIGNAL_LABELS[a.from]} &rarr; ${SIGNAL_LABELS[a.to]}</span>
+        <button class="signal-alert-dismiss" data-key="${a.key}" title="Dismiss">&#10005;</button>
+      </div>`;
+  }).join("");
+}
+
+document.getElementById("signalAlertsList").addEventListener("click", (e) => {
+  const btn = e.target.closest(".signal-alert-dismiss");
+  if (!btn) return;
+  signalAlerts = signalAlerts.filter(a => a.key !== btn.dataset.key);
+  renderSignalAlerts();
+});
+
+// ---------------------------------------------------------------------------
+// Render: Quiet Coverage — the mirror image of Noise Alert. Noise Alert
+// catches a price moving with nothing behind it; this catches real news
+// coverage (a matched article, same as the Signal badge uses) landing on a
+// coin whose volume is still too thin to call it backed — coverage the
+// market hasn't caught up to yet, worth knowing about either way.
+// ---------------------------------------------------------------------------
+function renderQuietCoverage() {
+  const list = document.getElementById("quietList");
+  if (!list) return;
+  const flagged = liveCoins
+    .filter(c => c.signal && c.signal.source && c.signal.vol_ratio < c.signal.threshold_low)
+    .sort((a, b) => a.signal.vol_ratio - b.signal.vol_ratio)
+    .slice(0, 4);
+
+  document.getElementById("quietCount").textContent = `${flagged.length} flagged`;
+
+  if (flagged.length === 0) {
+    list.innerHTML = `<p class="loading-row">Nothing quiet right now.</p>`;
+    return;
+  }
+
+  list.innerHTML = flagged.map(coin => {
+    const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
+    const up = pct >= 0;
+    return `
+      <div class="mover-row">
+        <span class="mover-left">
+          <span class="quiet-flag"></span>
+          ${coinDotHTML(coin, "sm")}
+          <span class="mover-name">${coin.name}</span><span class="mover-sym">${(coin.symbol || "").toUpperCase()}</span>
+        </span>
+        <span class="mover-change ${up ? "up" : "down"}">${pct != null ? (up ? "▲" : "▼") + " " + Math.abs(pct).toFixed(2) + "%" : "—"}</span>
+      </div>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------------------
 // Render: Watchlist + plan badge/modal
 // ---------------------------------------------------------------------------
 function renderWatchlist() {
@@ -243,6 +344,7 @@ function renderWatchlist() {
   countEl.textContent = TIERS[userTier].label;
   countEl.className = `watch-count tier-${userTier}`;
 
+  renderSignalAlerts();
   renderTierGrid();
 
   const list = document.getElementById("watchlistList");
@@ -296,6 +398,7 @@ function toggleWatch(id) {
     watchlist = watchlist.filter(s => s !== id);
     setWatchlist(watchlist);
     setStarState(id, false);
+    signalAlerts = signalAlerts.filter(a => a.id !== id);
     renderWatchlist();
     return;
   }
@@ -307,25 +410,6 @@ function toggleWatch(id) {
   setWatchlist(watchlist);
   setStarState(id, true);
   renderWatchlist();
-}
-
-// ---------------------------------------------------------------------------
-// Render: Market Overview
-// ---------------------------------------------------------------------------
-function renderMarketOverview() {
-  if (!globalStats || globalStats.total_market_cap_usd == null) return;
-  document.getElementById("statMarketCap").textContent = formatCap(globalStats.total_market_cap_usd);
-  document.getElementById("statVolume").textContent = formatCap(globalStats.total_volume_usd);
-  document.getElementById("statBtcDom").textContent =
-    globalStats.btc_dominance != null ? globalStats.btc_dominance.toFixed(1) + "%" : "—";
-
-  const capChange = globalStats.market_cap_change_24h;
-  const el = document.getElementById("statCapChange");
-  if (capChange != null) {
-    const up = capChange >= 0;
-    el.className = `stat-value mono ${up ? "up" : "down"}`;
-    el.textContent = `${up ? "▲" : "▼"} ${Math.abs(capChange).toFixed(2)}%`;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -379,9 +463,11 @@ async function fetchLivePrices() {
     const res = await fetch("/api/prices?limit=300");
     liveCoins = await res.json();
     rebuildCoinIndex();
+    checkSignalChanges();
     renderTable();
     renderMovers();
     renderNoiseAlert();
+    renderQuietCoverage();
     renderWatchlist();
     document.getElementById("lastUpdated").textContent = "Updated just now";
   } catch (err) {
@@ -396,16 +482,6 @@ async function fetchAllCoinsIndex() {
     rebuildCoinIndex();
   } catch (err) {
     console.error("Failed to load full coin list", err);
-  }
-}
-
-async function fetchGlobalStats() {
-  try {
-    const res = await fetch("/api/global");
-    globalStats = await res.json();
-    renderMarketOverview();
-  } catch (err) {
-    console.error("Failed to load global stats", err);
   }
 }
 
@@ -564,12 +640,10 @@ function renderCoinNotFound(id) {
 function initDashboard() {
   fetchAllCoinsIndex();
   fetchLivePrices();
-  fetchGlobalStats();
   fetchNewsList();
 
   setInterval(fetchLivePrices, 3000);
   setInterval(fetchAllCoinsIndex, 60000);
-  setInterval(fetchGlobalStats, 60000);
   setInterval(fetchNewsList, 300000);
 }
 
