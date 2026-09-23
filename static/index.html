@@ -1,35 +1,160 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Sift</title>
-    <link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sift — Crypto Signal, Not Noise</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Sift</h1>
-    <p>Signal, not shills.</p>
-    <div class="search-box">
-        <input type="text" id="coinInput" placeholder="Search for a coin...">
-        <button id="searchButton">Search</button>
-        <div id="suggestions" class="suggestions"></div>
+
+  <nav>
+    <a class="logo" href="/" aria-label="Sift home">
+      <svg class="logo-mark" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 4H23L15.5 13.5V20L10.5 22.5V13.5L3 4Z" stroke="#f0a94e" stroke-width="1.8" stroke-linejoin="round" fill="rgba(240,169,78,0.08)"/>
+      </svg>
+      <span class="logo-word">SIF<span>T</span></span>
+    </a>
+    <div class="nav-right">
+      <a class="nav-link active" href="/">Dashboard</a>
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
     </div>
-    <p id="result"></p>
+  </nav>
 
-    <table id="dashboard">
-        <thead>
-            <tr>
-                <th>Coin</th>
-                <th>Price</th>
-                <th>24h Change</th>
-            </tr>
-        </thead>
-        <tbody id="dashboardBody"></tbody>
-    </table>
+  <div class="layout">
 
-    <div id="newsSection">
-        <h2>Latest News</h2>
-        <ul id="newsList"></ul>
+    <!-- LEFT: watchlist, market stats, noise alert, top movers -->
+    <aside class="left-col">
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">My Watchlist</p>
+          <span class="watch-count" id="watchCount">Basic</span>
+        </div>
+        <div id="watchlistList">
+          <p class="watchlist-empty">Tap the star on any coin in the table to pin it here for quick, live tracking.</p>
+        </div>
+        <button class="watch-upgrade-link" id="watchUpgradeLink">See plans &rarr;</button>
+      </div>
+
+      <div class="card">
+        <p class="card-title">Market Overview</p>
+        <div class="stat-row">
+          <span class="stat-label">Market Cap</span>
+          <span class="stat-value mono" id="statMarketCap">&mdash;</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">24h Volume</span>
+          <span class="stat-value mono" id="statVolume">&mdash;</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">BTC Dominance</span>
+          <span class="stat-value mono" id="statBtcDom">&mdash;</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Cap Change (24h)</span>
+          <span class="stat-value mono" id="statCapChange">&mdash;</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">Noise Alert</p>
+          <span class="noise-count" id="noiseCount">0 flagged</span>
+        </div>
+        <div id="noiseList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">Top Movers</p>
+          <div class="tf-tabs">
+            <div class="tf-tab" data-tf="1h">1H</div>
+            <div class="tf-tab active" data-tf="24h">24H</div>
+            <div class="tf-tab" data-tf="7d">7D</div>
+          </div>
+        </div>
+        <div class="mover-list" id="moverList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: search + table -->
+    <main class="center-col">
+      <div class="search-wrap">
+        <div class="search-row">
+          <input class="search-input" type="text" id="searchInput" placeholder="Search for a coin..." autocomplete="off">
+          <button class="search-btn" id="searchBtn">Search</button>
+        </div>
+        <div class="suggestions" id="suggestions" style="display:none"></div>
+      </div>
+
+      <div>
+        <div class="panel-header">
+          <span class="panel-title">Top Coins</span>
+          <span class="panel-sub" id="lastUpdated">Loading&hellip;</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th class="watch-th"></th><th>Coin</th><th>Price</th><th>Market Cap</th><th>24h</th><th>Signal</th></tr>
+          </thead>
+          <tbody id="coinTableBody">
+            <tr class="table-loading"><td colspan="6">Loading coins&hellip;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- RIGHT: news -->
+    <aside class="right-col">
+      <div class="panel-header">
+        <span class="panel-title">Latest News</span>
+      </div>
+      <div class="news-list" id="newsList">
+        <p class="loading-row">Loading&hellip;</p>
+      </div>
+    </aside>
+
+  </div>
+
+  <div class="upgrade-overlay" id="upgradeOverlay">
+    <div class="upgrade-modal">
+      <div class="upgrade-modal-head">
+        <div>
+          <h2>Track more coins</h2>
+          <p class="upgrade-modal-sub">Your Watchlist gets live prices and a dedicated panel &mdash; pick how many coins you want in it.</p>
+        </div>
+        <button class="upgrade-close" id="upgradeClose">&#10005;</button>
+      </div>
+      <div class="tier-grid" id="tierGrid">
+        <div class="tier-card" data-tier="basic">
+          <div class="tier-name">Basic</div>
+          <div class="tier-limit">3</div>
+          <div class="tier-limit-label">watchlist coins</div>
+          <button class="tier-cta" data-tier-btn="basic">Current plan</button>
+        </div>
+        <div class="tier-card" data-tier="premium">
+          <div class="tier-badge">Popular</div>
+          <div class="tier-name">Premium</div>
+          <div class="tier-limit">10</div>
+          <div class="tier-limit-label">watchlist coins</div>
+          <button class="tier-cta" data-tier-btn="premium">Upgrade</button>
+        </div>
+        <div class="tier-card" data-tier="super">
+          <div class="tier-name">Super</div>
+          <div class="tier-limit">&infin;</div>
+          <div class="tier-limit-label">watchlist coins</div>
+          <button class="tier-cta" data-tier-btn="super">Upgrade</button>
+        </div>
+      </div>
+      <p class="upgrade-modal-sub" style="margin:16px 0 0; font-size:0.72rem;">
+        Plans aren't wired up to real billing yet &mdash; clicking a plan here just switches it locally so you can see how it looks and feels.
+      </p>
     </div>
+  </div>
 
-    <script src="/static/script.js"></script>
+  <script src="/static/script.js"></script>
 </body>
 </html>
