@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -595,6 +597,21 @@ def fetch_global():
     print("Global stats refreshed.")
 
 
+def format_published(published_parsed):
+    """Turn feedparser's parsed date into one consistent display string —
+    'Thu, Sep 24 2026' — instead of showing each RSS feed's own raw date
+    text as-is. Every source formats its <pubDate> a little differently (some
+    include seconds, all of them include a UTC offset like '+0000'), so
+    passing that straight through made the News panel look inconsistent
+    from card to card. published_parsed can be missing entirely on a
+    malformed feed entry, so this returns "" rather than crashing or
+    printing a bogus epoch date."""
+    if not published_parsed:
+        return ""
+    dt = datetime(*published_parsed[:6])
+    return f"{dt.strftime('%a, %b')} {dt.day} {dt.year}"
+
+
 def _fetch_one_news_source(source_name, feed_url):
     """Fetch + parse a single RSS source. Never raises — always returns a
     list, empty on any failure — since this runs inside a thread pool where
@@ -613,16 +630,23 @@ def _fetch_one_news_source(source_name, feed_url):
     except Exception as e:
         print(f"News source '{source_name}' failed this cycle: {e}")
         return []
-    return [
-        {
+    articles = []
+    for entry in feed.entries:
+        raw_parsed = entry.get("published_parsed")
+        articles.append({
             "title": entry.get("title", "Untitled"),
             "link": entry.get("link", ""),
             "source": source_name,
-            "published": entry.get("published", ""),
-            "published_parsed": entry.get("published_parsed") or time.gmtime(0)
-        }
-        for entry in feed.entries
-    ]
+            "published": format_published(raw_parsed),
+            # Sorting still needs an actual sortable value even for an entry
+            # with no date at all — falls back to the epoch so those sort to
+            # the very end (oldest) instead of breaking the sort entirely.
+            # format_published() above (which runs on raw_parsed, not this
+            # fallback) is what keeps a missing date showing "" rather than
+            # a bogus "Thu, Jan 1 1970".
+            "published_parsed": raw_parsed or time.gmtime(0),
+        })
+    return articles
 
 
 def fetch_news():
