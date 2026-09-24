@@ -148,10 +148,18 @@ function signalBadgeHTML(coin) {
   const sourceLineHTML = sig.source
     ? `<div class="tt-source">News: <a href="${sig.source_link || "#"}" target="_blank" rel="noopener">${sig.source}</a></div>`
     : `<div class="tt-source tt-source-empty">No matching news coverage — Signal is based on trading volume</div>`;
+  // Confidence is deliberately NOT in the badge label or the table — it's a
+  // sub-metric of how strongly a coin clears its status (see
+  // compute_confidence() in server.py), not a fourth status to scan for.
+  // One quiet line in the tooltip is enough; it doesn't need its own column.
+  const confidenceHTML = sig.confidence != null
+    ? `<div class="tt-confidence">Confidence: <strong>${sig.confidence}</strong>/100</div>`
+    : "";
   return `
     <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}
       <div class="signal-tooltip">
         <div class="tt-reason">${sig.reason}</div>
+        ${confidenceHTML}
         ${sourceLineHTML}
         <div class="tt-more">Click for full breakdown &rarr;</div>
       </div>
@@ -870,6 +878,7 @@ function renderCoinDetail(coin) {
   const lowPct = (sig.threshold_low ?? 0.02) * 100;
   const highPct = (sig.threshold_high ?? 0.08) * 100;
   document.getElementById("detailRatio").textContent = ratioPct.toFixed(2) + "%";
+  document.getElementById("detailConfidence").textContent = sig.confidence != null ? `${sig.confidence}/100` : "—";
  
   // Bar scale caps at 15% so the two threshold markers stay visible even
   // though most coins fall well under that.
@@ -1235,4 +1244,3 @@ function init() {
 }
  
 document.addEventListener("DOMContentLoaded", init);
- 

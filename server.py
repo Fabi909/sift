@@ -175,6 +175,31 @@ def format_usd_compact(n):
     return f"${n:.0f}"
  
  
+def compute_confidence(vol_ratio, source_count):
+    """0-100 score for how STRONGLY a coin clears its Validated/Mixed/
+    Unvalidated status, not which status it gets — that's still decided
+    entirely by the threshold logic below, unchanged. Two coins can both
+    land on "Validated" for very different reasons (one barely clearing
+    the volume threshold with a single borderline article, another
+    blowing past it with several independent sources); the status badge
+    can't show that difference, so this is the tiebreaker underneath it,
+    surfaced only in the hover tooltip and the coin detail page rather
+    than as its own column — the badge stays the headline.
+ 
+    Weighted 65/35 toward volume over news: every coin has a volume ratio,
+    so it's the always-available primary evidence, while news coverage
+    doesn't exist for most coins at most moments and shouldn't be able to
+    sink the score as hard as thin trading does just by being absent.
+    """
+    # Volume: 0 at no trading, full marks at 2x the "real activity"
+    # threshold — comfortably validated, not just barely over the line.
+    volume_score = min(100, (vol_ratio / (HIGH_VOLUME_RATIO * 2)) * 100) if HIGH_VOLUME_RATIO else 0
+    # News: each additional independent source matters less than the last
+    # (0 -> 1 source is a bigger jump in confidence than 3 -> 4 is).
+    news_score = min(100, source_count * 40)
+    return round(0.65 * volume_score + 0.35 * news_score)
+ 
+ 
 def compute_signal(coin, news_list):
     market_cap = coin.get("market_cap") or 0
     volume = coin.get("total_volume") or 0
@@ -269,6 +294,11 @@ def compute_signal(coin, news_list):
         "vol_ratio": vol_ratio,
         "threshold_high": HIGH_VOLUME_RATIO,
         "threshold_low": LOW_VOLUME_RATIO,
+        # How strongly this coin clears its status, not which status it got
+        # (see compute_confidence() above) — surfaced in the tooltip and
+        # detail page only, deliberately left off the main table so the
+        # three-bucket badge stays the at-a-glance read.
+        "confidence": compute_confidence(vol_ratio, len(distinct_sources)),
     }
  
  

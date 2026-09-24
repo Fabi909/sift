@@ -583,6 +583,8 @@
     z-index: 500;
   }
   .tt-reason { color: var(--text); margin-bottom: 7px; }
+  .tt-confidence { font-size: 0.68rem; color: var(--text-faint); margin-bottom: 7px; }
+  .tt-confidence strong { color: var(--text); font-weight: 700; }
   .tt-source {
     display: flex; align-items: center; gap: 5px;
     font-size: 0.68rem; color: var(--text-faint);
@@ -774,4 +776,3 @@
        script.js clamps the tooltip within the viewport on every screen
        size, including narrow ones, instead of a fixed CSS offset. */
   }
- 
