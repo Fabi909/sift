@@ -123,10 +123,14 @@ function coinDotHTML(coin, sizeClass = "") {
   const cls = `coin-dot ${sizeClass}`.trim();
   if (coin.image) {
     // Real logo, straight from CoinGecko's own data — no extra fetching needed.
-    // If it 404s for some reason, onerror swaps in the tinted letter fallback.
-    return `<div class="${cls}"><img src="${coin.image}" alt="" onerror="this.parentElement.classList.add('${tint}'); this.remove();">${letter}</div>`;
+    // Most of these logos are PNGs with a transparent background (a circle on a
+    // transparent square), so the letter fallback can't just sit behind the img
+    // and rely on it being opaque — it bleeds through the transparent corners.
+    // Instead the letter stays in the DOM but visibility:hidden, and onerror
+    // reveals it (and drops the broken img) only if the logo actually fails to load.
+    return `<div class="${cls}"><img src="${coin.image}" alt="" onerror="this.parentElement.classList.add('${tint}'); this.nextElementSibling.style.visibility='visible'; this.remove();"><span class="dot-letter" style="visibility:hidden">${letter}</span></div>`;
   }
-  return `<div class="${cls} ${tint}">${letter}</div>`;
+  return `<div class="${cls} ${tint}"><span class="dot-letter">${letter}</span></div>`;
 }
 
 const SIGNAL_LABELS = { validated: "Validated", mixed: "Mixed", unvalidated: "Unvalidated" };
