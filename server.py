@@ -599,17 +599,25 @@ def fetch_global():
 
 def format_published(published_parsed):
     """Turn feedparser's parsed date into one consistent display string —
-    'Thu, Sep 24 2026' — instead of showing each RSS feed's own raw date
-    text as-is. Every source formats its <pubDate> a little differently (some
-    include seconds, all of them include a UTC offset like '+0000'), so
-    passing that straight through made the News panel look inconsistent
+    'Thu, Sep 24 2026, 5:06 PM' — instead of showing each RSS feed's own raw
+    date text as-is. Every source formats its <pubDate> a little differently
+    (some include seconds, all of them include a UTC offset like '+0000'),
+    so passing that straight through made the News panel look inconsistent
     from card to card. published_parsed can be missing entirely on a
     malformed feed entry, so this returns "" rather than crashing or
-    printing a bogus epoch date."""
+    printing a bogus epoch date.
+
+    The time shown is whatever feedparser normalized the feed's own
+    <pubDate> to, which is UTC — this formats it in the 12-hour AM/PM
+    convention but doesn't convert it to any particular local time zone, so
+    it's still UTC under the hood, just without the "+0000" label that used
+    to make that explicit."""
     if not published_parsed:
         return ""
     dt = datetime(*published_parsed[:6])
-    return f"{dt.strftime('%a, %b')} {dt.day} {dt.year}"
+    date_part = f"{dt.strftime('%a, %b')} {dt.day} {dt.year}"
+    time_part = dt.strftime("%I:%M %p").lstrip("0")  # "05:06 PM" -> "5:06 PM"
+    return f"{date_part}, {time_part}"
 
 
 def _fetch_one_news_source(source_name, feed_url):
