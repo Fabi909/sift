@@ -57,6 +57,14 @@ NEWS_SOURCES = [
     ("Bitcoin Magazine", "https://bitcoinmagazine.com/feed"),
     ("NewsBTC", "https://www.newsbtc.com/feed/"),
     ("CryptoPotato", "https://cryptopotato.com/feed/"),
+    # Added for broader mid/small-cap altcoin coverage — the original 8 sources
+    # lean toward headline BTC/ETH stories that every outlet covers anyway.
+    # A coin's Signal reads "no matching coverage found" only because these
+    # sources happened to miss it, so wider coverage means fewer incorrect
+    # Unvalidated calls on smaller coins that do have real coverage elsewhere.
+    ("BeInCrypto", "https://beincrypto.com/feed/"),
+    ("U.Today", "https://u.today/rss"),
+    ("Blockworks", "https://blockworks.com/feed"),
 ]
 
 # ---------------------------------------------------------------------------
