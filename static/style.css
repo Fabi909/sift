@@ -432,7 +432,7 @@
      push the table wider than the center column so its right edge renders
      underneath the news panel next to it. Fixed widths keep the table
      exactly as wide as its container, always. */
-  table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   thead th:first-child { border-top-left-radius: 12px; }
   thead th:last-child { border-top-right-radius: 12px; }
   tbody tr:last-child td:first-child { border-bottom-left-radius: 12px; }
