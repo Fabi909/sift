@@ -10,6 +10,7 @@ import os
 import sqlite3
 import resource
 import gc
+from concurrent.futures import ThreadPoolExecutor
 
 load_dotenv()
 
@@ -65,6 +66,14 @@ NEWS_SOURCES = [
     ("BeInCrypto", "https://beincrypto.com/feed/"),
     ("U.Today", "https://u.today/rss"),
     ("Blockworks", "https://blockworks.com/feed"),
+    # Second round — picked for actually distinct coverage rather than more
+    # of the same headline stories: CoinGape/crypto.news/ZyCrypto all run high
+    # volumes of smaller-ticker stories daily; DL News leans DeFi/institutional,
+    # a genuinely different angle from everything else on this list.
+    ("CoinGape", "https://coingape.com/feed/"),
+    ("crypto.news", "https://crypto.news/feed/"),
+    ("ZyCrypto", "https://zycrypto.com/feed/"),
+    ("DL News", "https://www.dlnews.com/arc/outboundfeeds/rss/"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -586,34 +595,50 @@ def fetch_global():
     print("Global stats refreshed.")
 
 
+def _fetch_one_news_source(source_name, feed_url):
+    """Fetch + parse a single RSS source. Never raises — always returns a
+    list, empty on any failure — since this runs inside a thread pool where
+    an uncaught exception would just vanish rather than being visible to
+    whatever's waiting on the result.
+
+    feedparser.parse() takes no timeout of its own — pointed straight at a
+    URL, it uses urllib underneath with no time limit, so one slow or dead
+    RSS host could hang this call forever. Fetching with requests first
+    gives an explicit timeout, and catching everything here means one broken
+    feed (a timeout, a connection error, a malformed response) only drops
+    that one source for this cycle instead of taking down the whole batch."""
+    try:
+        resp = requests.get(feed_url, timeout=REQUEST_TIMEOUT_SECONDS, headers={"User-Agent": "Mozilla/5.0 (compatible; SiftBot/1.0)"})
+        feed = feedparser.parse(resp.content)
+    except Exception as e:
+        print(f"News source '{source_name}' failed this cycle: {e}")
+        return []
+    return [
+        {
+            "title": entry.get("title", "Untitled"),
+            "link": entry.get("link", ""),
+            "source": source_name,
+            "published": entry.get("published", ""),
+            "published_parsed": entry.get("published_parsed") or time.gmtime(0)
+        }
+        for entry in feed.entries
+    ]
+
+
 def fetch_news():
     global cached_news
-    all_articles = []
 
-    # feedparser.parse() takes no timeout of its own — pointed straight at a
-    # URL, it uses urllib underneath with no time limit, so one slow or dead
-    # RSS host could hang this whole function (and the thread that calls it)
-    # forever. Fetching with requests first gives an explicit timeout, and
-    # wrapping each source individually means one broken feed (a timeout, a
-    # connection error, a malformed response) only drops that one source for
-    # this cycle instead of throwing an unhandled exception that would kill
-    # news_refresh_loop permanently — silently freezing news until the next
-    # redeploy, since nothing was catching that before.
-    for source_name, feed_url in NEWS_SOURCES:
-        try:
-            resp = requests.get(feed_url, timeout=REQUEST_TIMEOUT_SECONDS, headers={"User-Agent": "Mozilla/5.0 (compatible; SiftBot/1.0)"})
-            feed = feedparser.parse(resp.content)
-        except Exception as e:
-            print(f"News source '{source_name}' failed this cycle: {e}")
-            continue
-        for entry in feed.entries:
-            all_articles.append({
-                "title": entry.get("title", "Untitled"),
-                "link": entry.get("link", ""),
-                "source": source_name,
-                "published": entry.get("published", ""),
-                "published_parsed": entry.get("published_parsed") or time.gmtime(0)
-            })
+    # Fetched concurrently rather than one source at a time. NEWS_SOURCES has
+    # grown from 8 to 15 feeds — a sequential loop's worst case (several
+    # sources timing out back-to-back, each eating the full
+    # REQUEST_TIMEOUT_SECONDS) could start approaching news_refresh_loop's
+    # own 300s cycle. A small thread pool means one cycle takes roughly as
+    # long as the single slowest source, not the sum of all of them, and
+    # that stays true as more sources get added later.
+    all_articles = []
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for articles in pool.map(lambda src: _fetch_one_news_source(*src), NEWS_SOURCES):
+            all_articles.extend(articles)
 
     all_articles.sort(key=lambda article: article["published_parsed"], reverse=True)
 
