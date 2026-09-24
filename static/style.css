@@ -187,6 +187,11 @@
      mover-change/mover-rank keep flex-shrink:0 so they never get squeezed. */
   .mover-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .mover-row:last-child { border-bottom: none; }
+  /* The hover highlight is widened past the row's own content (negative
+     margin balanced by matching padding) so it doesn't hug the coin dot
+     flush on the left — a little breathing room on both sides reads as a
+     deliberate rounded highlight chip instead of the background just
+     bumping into the logo. */
   .mover-row[data-id] { cursor: pointer; margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 8px; }
   .mover-row[data-id]:hover { background: var(--surface-2); }
   .mover-rank { color: var(--text-faint); font-size: 0.72rem; width: 14px; display: inline-block; flex-shrink: 0; }
@@ -432,6 +437,12 @@
      push the table wider than the center column so its right edge renders
      underneath the news panel next to it. Fixed widths keep the table
      exactly as wide as its container, always. */
+  /* border-collapse: collapse stops border-radius from clipping the table's
+     own contents in most browsers — the header/row backgrounds are square-
+     cornered underneath, so the rounded border ends up looking like a
+     separate smoothed rectangle floating over sharp corners instead of
+     hugging them. overflow: hidden forces the table to clip its contents to
+     that rounded shape, so the corners actually match. */
   table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   thead th:first-child { border-top-left-radius: 12px; }
   thead th:last-child { border-top-right-radius: 12px; }
