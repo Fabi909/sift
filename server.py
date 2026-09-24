@@ -135,7 +135,13 @@ FULL_INDEX_REFRESH_HOURS = 8
 
 
 def find_matching_news(name, symbol, news_list):
-    """Look for a cached news article that actually mentions this coin."""
+    """Look for EVERY cached news article that mentions this coin, not just
+    the first one. A coin independently covered by several different outlets
+    is meaningfully stronger evidence than a single borderline match from
+    one site, so compute_signal() below uses the full list — how many
+    articles, and from how many distinct sources — instead of a bare
+    yes/no. news_list is already sorted newest-first (see fetch_news()), so
+    the returned list is too."""
     name = (name or "").strip()
     symbol = (symbol or "").strip()
 
@@ -144,13 +150,12 @@ def find_matching_news(name, symbol, news_list):
     # "S" or "ID" matching random words in headlines).
     symbol_pattern = re.compile(r"\b" + re.escape(symbol) + r"\b", re.IGNORECASE) if len(symbol) >= 3 else None
 
+    matches = []
     for article in news_list:
         title = article.get("title", "")
-        if name_pattern and name_pattern.search(title):
-            return article
-        if symbol_pattern and symbol_pattern.search(title):
-            return article
-    return None
+        if (name_pattern and name_pattern.search(title)) or (symbol_pattern and symbol_pattern.search(title)):
+            matches.append(article)
+    return matches
 
 
 def format_usd_compact(n):
@@ -178,15 +183,24 @@ def compute_signal(coin, news_list):
     volume_backs = vol_ratio >= HIGH_VOLUME_RATIO
     volume_thin = vol_ratio < LOW_VOLUME_RATIO
 
-    matched = find_matching_news(coin.get("name"), coin.get("symbol"), news_list)
-    has_news = matched is not None
+    matches = find_matching_news(coin.get("name"), coin.get("symbol"), news_list)
+    has_news = len(matches) > 0
+    # Distinct outlets, newest-first (matches is already sorted that way).
+    # Independent corroboration from several different sources is stronger
+    # evidence than the same single article, so this drives the reason text
+    # below rather than collapsing straight to a yes/no.
+    distinct_sources = []
+    for m in matches:
+        if m["source"] not in distinct_sources:
+            distinct_sources.append(m["source"])
 
     # The reason sentence below is built from THIS coin's actual numbers —
-    # its real volume, market cap, and vol_ratio, and the actual article
-    # that matched (if any) — rather than one fixed string per status.
-    # Two coins that both land on "Validated" traded very different amounts
-    # relative to their size; showing the real percentage (and the real
-    # headline, when there is one) is what makes the reason mean something
+    # its real volume, market cap, and vol_ratio, and the actual article/
+    # sources that matched (if any) — rather than one fixed string per
+    # status. Two coins that both land on "Validated" traded very different
+    # amounts relative to their size, and one might have five independent
+    # outlets backing it while another has exactly one borderline match;
+    # showing the real numbers is what makes the reason mean something
     # specific to that coin instead of reading like a canned label.
     high_pct = f"{HIGH_VOLUME_RATIO * 100:.0f}%"
     low_pct = f"{LOW_VOLUME_RATIO * 100:.0f}%"
@@ -194,11 +208,21 @@ def compute_signal(coin, news_list):
         f"Trading {format_usd_compact(volume)} in 24h — "
         f"{vol_ratio * 100:.1f}% of its {format_usd_compact(market_cap)} market cap"
     )
-    news_clause = (
-        f'coverage found from {matched["source"]} ("{matched["title"]}")'
-        if has_news else
-        f"no matching coverage found across {len(NEWS_SOURCES)} tracked sources"
-    )
+
+    if has_news:
+        if len(distinct_sources) == 1:
+            sources_desc = distinct_sources[0]
+        elif len(distinct_sources) == 2:
+            sources_desc = f"{distinct_sources[0]} and {distinct_sources[1]}"
+        else:
+            sources_desc = f"{distinct_sources[0]}, {distinct_sources[1]}, and {len(distinct_sources) - 2} more"
+        news_clause = (
+            f'coverage found from {sources_desc} ("{matches[0]["title"]}")'
+            if len(matches) == 1 else
+            f'coverage found from {sources_desc} — most recently "{matches[0]["title"]}"'
+        )
+    else:
+        news_clause = f"no matching coverage found across {len(NEWS_SOURCES)} tracked sources"
 
     if volume_backs and has_news:
         status = "validated"
@@ -224,12 +248,22 @@ def compute_signal(coin, news_list):
             f"{volume_clause}, under the {high_pct} threshold for real trading activity, and {news_clause}."
         )
 
+    matched = matches[0] if matches else None
     return {
         "status": status,
         "reason": reason,
+        # The single most recent matched article — kept as its own field
+        # (rather than only the list below) so the existing frontend link in
+        # the tooltip keeps working unchanged.
         "source": matched["source"] if matched else None,
         "source_link": matched["link"] if matched else None,
         "source_title": matched["title"] if matched else None,
+        # New: how many articles matched, and the distinct outlets among
+        # them — not used by the frontend yet, but there for a future UI
+        # that wants to show corroboration strength directly (e.g. a "4
+        # sources" badge) rather than parsing it back out of the sentence.
+        "source_count": len(matches),
+        "matched_sources": distinct_sources,
         "volume": volume,
         "market_cap": market_cap,
         "vol_ratio": vol_ratio,
