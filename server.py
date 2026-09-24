@@ -56,6 +56,31 @@ NEWS_SOURCES = [
 HIGH_VOLUME_RATIO = 0.08   # 8%+ of market cap traded in 24h = real activity
 LOW_VOLUME_RATIO = 0.02    # under 2% = thin/quiet trading
 
+# ---------------------------------------------------------------------------
+# Coin coverage: a "live" hot set + a slow, complete search index
+#
+# Early on, cached_coins held ~5000 coins (20 CoinGecko pages), refetched
+# every 60 seconds, and doubled as both the dashboard's live data AND the
+# search index — the frontend downloaded that entire list on a timer just to
+# power the search box. On Render's 512MB Starter plan that's what pushed the
+# service over its memory limit.
+#
+# The fix is to stop conflating "what's live on the dashboard" with "what's
+# searchable." Those are now two different things:
+#   - cached_coins (below) is the small, frequently-refreshed hot set behind
+#     the table / Top Movers / Watchlist / Track Record — it only needs to
+#     comfortably cover the top ~300 the dashboard actually displays.
+#   - coin_index (a SQLite table, see init_db()) holds CoinGecko's entire
+#     coin list — ~21,500 coins as of writing — refreshed slowly in the
+#     background by refresh_full_coin_index(). Search queries hit this table
+#     directly and return a handful of matches, so browsers never download
+#     more than a few coins at a time no matter how big the searchable
+#     universe is.
+# ---------------------------------------------------------------------------
+LIVE_COIN_PAGES = 3              # 750 coins — headroom above the top 300 actually shown live
+FULL_INDEX_PAGE_DELAY = 4        # seconds between pages while building the full index (rate-limit pacing — see below)
+FULL_INDEX_REFRESH_HOURS = 6
+
 
 def find_matching_news(name, symbol, news_list):
     """Look for a cached news article that actually mentions this coin."""
@@ -166,6 +191,21 @@ def init_db():
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_coin_ts ON signal_snapshots (coin_id, ts)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS coin_index (
+            id TEXT PRIMARY KEY,
+            symbol TEXT,
+            name TEXT,
+            image TEXT,
+            current_price REAL,
+            market_cap REAL,
+            total_volume REAL,
+            price_change_percentage_24h REAL,
+            updated_at INTEGER
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_name ON coin_index (name)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_symbol ON coin_index (symbol)")
     conn.commit()
     conn.close()
 
@@ -330,7 +370,7 @@ def snapshot_refresh_loop():
 def fetch_all_coins():
     global cached_coins
     all_coins = []
-    for page in range(1, 21):
+    for page in range(1, LIVE_COIN_PAGES + 1):
         response = requests.get(
             "https://api.coingecko.com/api/v3/coins/markets",
             params={
@@ -353,6 +393,81 @@ def fetch_all_coins():
     cached_coins = all_coins
     compute_all_signals()
     print("Price cache refreshed. Total coins cached:", len(cached_coins))
+
+
+def refresh_full_coin_index():
+    """Pages through CoinGecko's ENTIRE coin list — not just the small live
+    hot set above — and upserts it into the coin_index SQLite table, so
+    /api/search and /api/coin/<id> can find any of the ~21,500 coins
+    CoinGecko tracks without holding all of them in memory or shipping them
+    to every browser tab (that full-list-in-memory-and-over-the-wire pattern
+    is what caused the earlier memory limit outage).
+
+    This is deliberately paced slowly — one page (250 coins) every
+    FULL_INDEX_PAGE_DELAY seconds — rather than fetched as fast as possible.
+    CoinGecko's free Demo API key allows 30 calls/minute total, and that
+    budget is shared with price_refresh_loop and global_refresh_loop, which
+    are also running concurrently. At the default 4-second delay this job
+    uses ~15 calls/minute on its own, leaving comfortable headroom for the
+    other loops, and a full pass across ~90 pages takes roughly 6 minutes —
+    fine for something that only needs to run every few hours, since a
+    long-tail coin's price doesn't need to be fresher than that to be
+    searchable and to have a working detail page."""
+    page = 1
+    total = 0
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        while True:
+            response = requests.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={
+                    "vs_currency": "usd",
+                    "order": "market_cap_desc",
+                    "per_page": 250,
+                    "page": page,
+                    "x_cg_demo_api_key": API_KEY
+                }
+            )
+            if response.status_code != 200:
+                print("Full coin index stopped at page", page, "- status:", response.status_code)
+                break
+            data = response.json()
+            if not data:
+                break
+
+            now = int(time.time())
+            rows = [
+                (c["id"], c.get("symbol"), c.get("name"), c.get("image"),
+                 c.get("current_price"), c.get("market_cap"), c.get("total_volume"),
+                 c.get("price_change_percentage_24h"), now)
+                for c in data
+            ]
+            conn.executemany("""
+                INSERT INTO coin_index (id, symbol, name, image, current_price, market_cap, total_volume, price_change_percentage_24h, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    symbol=excluded.symbol,
+                    name=excluded.name,
+                    image=excluded.image,
+                    current_price=excluded.current_price,
+                    market_cap=excluded.market_cap,
+                    total_volume=excluded.total_volume,
+                    price_change_percentage_24h=excluded.price_change_percentage_24h,
+                    updated_at=excluded.updated_at
+            """, rows)
+            conn.commit()
+            total += len(rows)
+            page += 1
+            time.sleep(FULL_INDEX_PAGE_DELAY)
+    finally:
+        conn.close()
+    print(f"Full coin index refreshed: {total} coins across {page - 1} pages.")
+
+
+def full_index_refresh_loop():
+    while True:
+        refresh_full_coin_index()
+        time.sleep(FULL_INDEX_REFRESH_HOURS * 3600)
 
 
 def fetch_global():
@@ -443,6 +558,71 @@ def get_prices():
     return jsonify(cached_coins)
 
 
+@app.route("/api/search")
+def search_coins():
+    """Server-side search over the full coin_index table (every coin
+    CoinGecko tracks), so the browser never has to hold or download the
+    whole list — only the handful of matches. Exact symbol/name matches are
+    ranked first, then everything else by market cap."""
+    q = (request.args.get("q") or "").strip()
+    limit = request.args.get("limit", type=int) or 8
+    if not q:
+        return jsonify([])
+
+    like = f"%{q}%"
+    q_lower = q.lower()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT id, symbol, name, image, current_price, market_cap, total_volume, price_change_percentage_24h
+        FROM coin_index
+        WHERE name LIKE ? OR symbol LIKE ?
+        ORDER BY
+            CASE
+                WHEN LOWER(symbol) = ? THEN 0
+                WHEN LOWER(name) = ? THEN 1
+                ELSE 2
+            END,
+            market_cap DESC
+        LIMIT ?
+    """, (like, like, q_lower, q_lower, limit)).fetchall()
+    conn.close()
+
+    results = []
+    for row in rows:
+        coin = dict(row)
+        coin["signal"] = compute_signal(coin, cached_news)
+        results.append(coin)
+    return jsonify(results)
+
+
+@app.route("/api/coin/<coin_id>")
+def get_coin(coin_id):
+    """Look up a single coin by id, for the coin detail page. Checks the
+    live hot set first (fresher price, refreshed every 60s) and falls back
+    to the full coin_index (refreshed every few hours) for anything outside
+    it — so every coin CoinGecko tracks has a working detail page, just with
+    a price that can be up to a few hours old for long-tail coins."""
+    coin = next((c for c in cached_coins if c["id"] == coin_id), None)
+    if coin:
+        return jsonify(coin)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT id, symbol, name, image, current_price, market_cap, total_volume, price_change_percentage_24h FROM coin_index WHERE id = ?",
+        (coin_id,)
+    ).fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify(None), 404
+
+    coin = dict(row)
+    coin["signal"] = compute_signal(coin, cached_news)
+    return jsonify(coin)
+
+
 @app.route("/api/news")
 def get_news():
     return jsonify(cached_news)
@@ -463,17 +643,42 @@ def get_coin_track_record(coin_id):
     return jsonify(compute_coin_track_record(coin_id))
 
 
-fetch_all_coins()
-fetch_global()
-fetch_news()
+def initial_load():
+    """Everything needed before the dashboard has real data, run on a
+    background thread instead of blocking here at import time. Previously
+    these ran synchronously before app.run() — meaning Flask didn't start
+    listening on its port until ~20 sequential CoinGecko requests had all
+    finished. On Render, the platform expects the port to open quickly; a
+    slow or rate-limited CoinGecko response during that window could stall
+    startup long enough to look like the service never came up, then get
+    restarted mid-fetch — repeating the same slow startup each time. Running
+    it in the background lets Flask bind the port immediately, so Render's
+    health check passes right away and the site is reachable (just with
+    "Loading…" states) while this fills in a few seconds later."""
+    fetch_all_coins()
+    fetch_global()
+    fetch_news()
+    snapshot_on_start_if_stale()
 
+
+# init_db() only does local SQLite table setup — no network calls — so unlike
+# the fetches above it's fast enough to run synchronously here. That also
+# avoids a startup race: full_index_refresh_loop (below) writes to the
+# coin_index table from its very first tick, so that table needs to exist
+# before its thread starts, not "eventually" once initial_load() gets to it.
 init_db()
-snapshot_on_start_if_stale()
 
+threading.Thread(target=initial_load, daemon=True).start()
 threading.Thread(target=price_refresh_loop, daemon=True).start()
 threading.Thread(target=global_refresh_loop, daemon=True).start()
 threading.Thread(target=news_refresh_loop, daemon=True).start()
 threading.Thread(target=snapshot_refresh_loop, daemon=True).start()
+threading.Thread(target=full_index_refresh_loop, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    # debug=True was left on from local development — it should never run on
+    # a publicly deployed service: besides the extra memory overhead, Flask's
+    # debug mode exposes an interactive in-browser debugger on any unhandled
+    # error, which lets whoever triggers that error run arbitrary code on the
+    # server. debug=False here as well as on Render.
+    app.run(debug=False, use_reloader=False)

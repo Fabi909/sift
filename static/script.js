@@ -2,16 +2,21 @@
 // Sift dashboard
 //
 // Data flow:
-//   - allCoins       full ~5000-coin list, refreshed every 60s. Used only for
-//                     the search index (so search can find coins outside the
-//                     top 300 shown live).
-//   - liveCoins       top 300 coins by market cap, refreshed every 3s. This is
-//                     what the table / Top Movers / Noise Alert / Watchlist
-//                     actually render from — a much smaller, cheaper payload
-//                     than re-downloading all ~5000 coins every 3 seconds.
-//   - coinsById       a merged lookup (allCoins first, liveCoins overwrites)
-//                     so any coin can be found by id regardless of which list
-//                     it came from.
+//   - liveCoins    the top ~750 coins by market cap, refreshed every 15s.
+//                   This is what the table / Top Movers / Noise Alert /
+//                   Watchlist actually render from.
+//   - extraCoins    coins outside that live pool — either found via search
+//                   (/api/search) or looked up individually
+//                   (/api/coin/<id>) for a watchlisted coin that isn't in
+//                   liveCoins. Search itself is server-side (queries a
+//                   SQLite index of every coin CoinGecko tracks, built by a
+//                   slow background job — see refresh_full_coin_index() in
+//                   server.py) instead of shipping the entire multi-thousand
+//                   coin list to every browser tab, which is what caused the
+//                   earlier memory limit outage.
+//   - coinsById     a merged lookup (extraCoins first, liveCoins overwrites
+//                   on overlap since it's fresher) so any coin can be found
+//                   by id regardless of which source it came from.
 // ---------------------------------------------------------------------------
 
 const TABLE_SIZE = 50;
@@ -21,7 +26,7 @@ const TIERS = {
   super: { label: "Super", limit: Infinity },
 };
 
-let allCoins = [];
+let extraCoins = new Map(); // id -> coin, for search results / watchlisted coins outside liveCoins
 let liveCoins = [];
 let coinsById = new Map();
 let currentFilter = null;   // coin id when the table is filtered to a search result
@@ -145,8 +150,26 @@ function signalBadgeHTML(coin) {
 
 function rebuildCoinIndex() {
   coinsById = new Map();
-  allCoins.forEach(c => coinsById.set(c.id, c));
+  extraCoins.forEach((c, id) => coinsById.set(id, c));
   liveCoins.forEach(c => coinsById.set(c.id, c)); // liveCoins is fresher, wins on overlap
+}
+
+// A watchlisted coin might be outside liveCoins (the top ~750). Those still
+// need to render in the Watchlist panel, so fetch them individually from the
+// server's full coin index — cheap, since it's a local SQLite lookup, not a
+// CoinGecko call.
+async function ensureWatchlistCoinsLoaded() {
+  const missing = watchlist.filter(id => !coinsById.has(id));
+  if (missing.length === 0) return;
+  await Promise.all(missing.map(async id => {
+    try {
+      const res = await fetch(`/api/coin/${encodeURIComponent(id)}`);
+      if (!res.ok) return;
+      const coin = await res.json();
+      if (coin && coin.id) extraCoins.set(coin.id, coin);
+    } catch (err) { /* a watchlisted coin that can't be found stays hidden until it can */ }
+  }));
+  rebuildCoinIndex();
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +203,13 @@ function compareForSort(av, bv, direction) {
 }
 
 function getTableCoins() {
-  if (currentFilter) return liveCoins.filter(c => c.id === currentFilter);
+  if (currentFilter) {
+    // The filtered coin might be a search result outside liveCoins (that's
+    // the whole point of server-side search — finding long-tail coins), so
+    // resolve it through the merged index rather than liveCoins alone.
+    const coin = coinsById.get(currentFilter);
+    return coin ? [coin] : [];
+  }
 
   let coins = liveCoins;
   if (signalFilter !== "all") {
@@ -516,24 +545,43 @@ function renderNews(articles) {
 }
 
 // ---------------------------------------------------------------------------
-// Search
+// Search — server-side now (queries the full ~21,500-coin index on the
+// server via /api/search), instead of filtering a full coin list already
+// sitting in the browser. Debounced so rapid typing doesn't fire a request
+// per keystroke, with a request-id guard so a slow earlier response can't
+// clobber a faster, newer one.
 // ---------------------------------------------------------------------------
+let searchDebounceTimer = null;
+let searchRequestId = 0;
+
 function renderSuggestions(query) {
   const box = document.getElementById("suggestions");
+  clearTimeout(searchDebounceTimer);
+
   if (!query) { box.style.display = "none"; box.innerHTML = ""; return; }
-  const q = query.toLowerCase();
-  const matches = allCoins
-    .filter(c => c.name.toLowerCase().includes(q) || (c.symbol || "").toLowerCase().includes(q))
-    .slice(0, 8);
 
-  if (matches.length === 0) { box.style.display = "none"; box.innerHTML = ""; return; }
+  const thisRequestId = ++searchRequestId;
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const matches = await res.json();
+      if (thisRequestId !== searchRequestId) return; // a newer keystroke already superseded this
 
-  box.innerHTML = matches.map(c => `
-    <div class="suggestion-item" data-id="${c.id}">
-      <span class="sugg-left">${coinDotHTML(c, "sm")}<span class="sugg-name">${c.name}</span></span>
-      <span class="sym">${(c.symbol || "").toUpperCase()}</span>
-    </div>`).join("");
-  box.style.display = "block";
+      if (matches.length === 0) { box.style.display = "none"; box.innerHTML = ""; return; }
+
+      matches.forEach(c => extraCoins.set(c.id, c)); // cache so clicking a suggestion resolves instantly
+      rebuildCoinIndex();
+
+      box.innerHTML = matches.map(c => `
+        <div class="suggestion-item" data-id="${c.id}">
+          <span class="sugg-left">${coinDotHTML(c, "sm")}<span class="sugg-name">${c.name}</span></span>
+          <span class="sym">${(c.symbol || "").toUpperCase()}</span>
+        </div>`).join("");
+      box.style.display = "block";
+    } catch (err) {
+      console.error("Search failed", err);
+    }
+  }, 200);
 }
 
 function applySearch(id) {
@@ -543,13 +591,14 @@ function applySearch(id) {
 
 // ---------------------------------------------------------------------------
 // Fetching (see the big comment at the top of this file for the split
-// between allCoins / liveCoins)
+// between liveCoins / extraCoins)
 // ---------------------------------------------------------------------------
 async function fetchLivePrices() {
   try {
     const res = await fetch("/api/prices?limit=300");
     liveCoins = await res.json();
     rebuildCoinIndex();
+    await ensureWatchlistCoinsLoaded();
     checkSignalChanges();
     renderTable();
     renderMovers();
@@ -559,16 +608,6 @@ async function fetchLivePrices() {
     document.getElementById("lastUpdated").textContent = "Updated just now";
   } catch (err) {
     console.error("Failed to load live prices", err);
-  }
-}
-
-async function fetchAllCoinsIndex() {
-  try {
-    const res = await fetch("/api/prices");
-    allCoins = await res.json();
-    rebuildCoinIndex();
-  } catch (err) {
-    console.error("Failed to load full coin list", err);
   }
 }
 
@@ -676,12 +715,21 @@ document.getElementById("suggestions").addEventListener("click", (e) => {
   applySearch(id);
 });
 
-document.getElementById("searchBtn").addEventListener("click", () => {
-  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+document.getElementById("searchBtn").addEventListener("click", async () => {
+  const q = document.getElementById("searchInput").value.trim();
   if (!q) { applySearch(null); return; }
-  const exact = allCoins.find(c => c.name.toLowerCase() === q || (c.symbol || "").toLowerCase() === q);
-  const partial = exact || allCoins.find(c => c.name.toLowerCase().includes(q) || (c.symbol || "").toLowerCase().includes(q));
-  applySearch(partial ? partial.id : null);
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=1`);
+    const matches = await res.json();
+    if (matches.length > 0) {
+      extraCoins.set(matches[0].id, matches[0]);
+      rebuildCoinIndex();
+    }
+    applySearch(matches.length > 0 ? matches[0].id : null);
+  } catch (err) {
+    console.error("Search failed", err);
+    applySearch(null);
+  }
 });
 
 document.addEventListener("click", (e) => {
@@ -701,9 +749,9 @@ function navigateToCoin(id) {
 
 async function initCoinDetail(id) {
   try {
-    const res = await fetch("/api/prices");
-    const coins = await res.json();
-    const coin = coins.find(c => c.id === id);
+    const res = await fetch(`/api/coin/${encodeURIComponent(id)}`);
+    if (!res.ok) { renderCoinNotFound(id); return; }
+    const coin = await res.json();
     if (!coin) { renderCoinNotFound(id); return; }
     renderCoinDetail(coin);
     fetchCoinTrackRecord(id);
@@ -828,13 +876,15 @@ function renderCoinNotFound(id) {
 // based on the URL, since both share this one script.js / index.html.
 // ---------------------------------------------------------------------------
 function initDashboard() {
-  fetchAllCoinsIndex();
   fetchLivePrices();
   fetchNewsList();
   fetchTrackRecord();
 
-  setInterval(fetchLivePrices, 3000);
-  setInterval(fetchAllCoinsIndex, 60000);
+  // Search no longer needs a periodic full-list fetch at all — it queries
+  // the server on demand instead (see the Search section above). Prices
+  // don't move fast enough on a research dashboard to need a 3-second
+  // refresh, so that's backed off too.
+  setInterval(fetchLivePrices, 15000);
   setInterval(fetchNewsList, 300000);
   setInterval(fetchTrackRecord, 300000); // changes slowly — snapshots are only taken every few hours
 }
