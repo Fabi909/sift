@@ -16,6 +16,16 @@ CORS(app)
 
 API_KEY = os.getenv("COINGECKO_API_KEY")
 
+# Paid CoinGecko plans (Basic and up) are a completely separate API from the
+# free Demo tier — different root URL, different auth. Demo used
+# api.coingecko.com with the key as a query param (x_cg_demo_api_key); paid
+# plans use pro-api.coingecko.com with the key as a header instead. The two
+# are not interchangeable — a Demo key against the Pro URL (or vice versa)
+# just fails, which is exactly what happened here right after upgrading,
+# since the code was still built for the old free endpoint/key combo.
+COINGECKO_BASE_URL = "https://pro-api.coingecko.com/api/v3"
+COINGECKO_HEADERS = {"x-cg-pro-api-key": API_KEY}
+
 cached_coins = []       # every coin CoinGecko gives us, each with a "signal" field attached
 cached_news = []
 cached_global = {}      # total market cap / volume / btc dominance, from CoinGecko's /global
@@ -78,8 +88,21 @@ LOW_VOLUME_RATIO = 0.02    # under 2% = thin/quiet trading
 #     universe is.
 # ---------------------------------------------------------------------------
 LIVE_COIN_PAGES = 3              # 750 coins — headroom above the top 300 actually shown live
-FULL_INDEX_PAGE_DELAY = 4        # seconds between pages while building the full index (rate-limit pacing — see below)
-FULL_INDEX_REFRESH_HOURS = 6
+
+# These intervals are sized against CoinGecko's paid Basic plan budget:
+# 100,000 credits/month, 300 calls/min. Each /coins/markets or /global call
+# costs 1 credit regardless of per_page, so credits/month is just calls/month.
+# At the old 60-second price/global intervals plus a 6-hour full index
+# rebuild, this app was on track to use ~226,000 credits/month — more than
+# double even the PAID budget, not just the free Demo one. These numbers
+# instead target roughly 60,000/month combined, leaving real headroom:
+#   price  (3 calls/cycle,  every 180s) -> ~480 cycles/day -> ~43,200/mo
+#   global (1 call/cycle,   every 300s) -> ~288 cycles/day ->  ~8,640/mo
+#   full index (~86 pages,  every 8h)   ->    3 passes/day ->  ~7,740/mo
+PRICE_REFRESH_INTERVAL_SECONDS = 180
+GLOBAL_REFRESH_INTERVAL_SECONDS = 300
+FULL_INDEX_PAGE_DELAY = 4        # seconds between pages while building the full index (per-minute pacing, not the binding constraint now — see above)
+FULL_INDEX_REFRESH_HOURS = 8
 
 
 def find_matching_news(name, symbol, news_list):
@@ -372,7 +395,7 @@ def fetch_all_coins():
     all_coins = []
     for page in range(1, LIVE_COIN_PAGES + 1):
         response = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
+            f"{COINGECKO_BASE_URL}/coins/markets",
             params={
                 "vs_currency": "usd",
                 "order": "market_cap_desc",
@@ -381,8 +404,8 @@ def fetch_all_coins():
                 # Adds price_change_percentage_1h_in_currency / _24h_in_currency /
                 # _7d_in_currency to every coin, needed for the Top Movers timeframes.
                 "price_change_percentage": "1h,24h,7d",
-                "x_cg_demo_api_key": API_KEY
-            }
+            },
+            headers=COINGECKO_HEADERS
         )
         if response.status_code != 200:
             print("Stopped at page", page, "- status:", response.status_code)
@@ -394,7 +417,7 @@ def fetch_all_coins():
         # A failed or rate-limited fetch shouldn't wipe out perfectly good
         # data from the last successful cycle — that would blank out the
         # whole dashboard because of one bad refresh. Keep showing the last
-        # good data and just try again in 60s.
+        # good data and just try again next cycle (PRICE_REFRESH_INTERVAL_SECONDS).
         print("Price refresh got no data this cycle (likely rate-limited) — keeping previous", len(cached_coins), "cached coins")
         return
 
@@ -413,14 +436,15 @@ def refresh_full_coin_index():
 
     This is deliberately paced slowly — one page (250 coins) every
     FULL_INDEX_PAGE_DELAY seconds — rather than fetched as fast as possible.
-    CoinGecko's free Demo API key allows 30 calls/minute total, and that
-    budget is shared with price_refresh_loop and global_refresh_loop, which
-    are also running concurrently. At the default 4-second delay this job
-    uses ~15 calls/minute on its own, leaving comfortable headroom for the
-    other loops, and a full pass across ~90 pages takes roughly 6 minutes —
-    fine for something that only needs to run every few hours, since a
-    long-tail coin's price doesn't need to be fresher than that to be
-    searchable and to have a working detail page."""
+    On the paid Basic plan the per-minute limit (300 calls/min) is generous
+    enough that pacing isn't really about avoiding 429s anymore; the real
+    constraint is the 100,000 credits/month budget shared with
+    price_refresh_loop and global_refresh_loop, which is why this only runs
+    once every FULL_INDEX_REFRESH_HOURS hours rather than continuously. At
+    the default 4-second delay a full pass across ~90 pages still takes
+    roughly 6 minutes, which is fine for something that only needs to run a
+    few times a day, since a long-tail coin's price doesn't need to be
+    fresher than that to be searchable and to have a working detail page."""
     page = 1
     total = 0
     consecutive_429s = 0
@@ -428,14 +452,14 @@ def refresh_full_coin_index():
     try:
         while True:
             response = requests.get(
-                "https://api.coingecko.com/api/v3/coins/markets",
+                f"{COINGECKO_BASE_URL}/coins/markets",
                 params={
                     "vs_currency": "usd",
                     "order": "market_cap_desc",
                     "per_page": 250,
                     "page": page,
-                    "x_cg_demo_api_key": API_KEY
-                }
+                },
+                headers=COINGECKO_HEADERS
             )
             if response.status_code == 429:
                 # Rate-limited. Retrying is fine ONCE or TWICE, but retrying
@@ -507,8 +531,8 @@ def full_index_refresh_loop():
 def fetch_global():
     global cached_global
     response = requests.get(
-        "https://api.coingecko.com/api/v3/global",
-        params={"x_cg_demo_api_key": API_KEY}
+        f"{COINGECKO_BASE_URL}/global",
+        headers=COINGECKO_HEADERS
     )
     if response.status_code != 200:
         print("Global stats fetch failed - status:", response.status_code)
@@ -555,13 +579,13 @@ def fetch_news():
 
 def price_refresh_loop():
     while True:
-        time.sleep(60)
+        time.sleep(PRICE_REFRESH_INTERVAL_SECONDS)
         fetch_all_coins()
 
 
 def global_refresh_loop():
     while True:
-        time.sleep(60)
+        time.sleep(GLOBAL_REFRESH_INTERVAL_SECONDS)
         fetch_global()
 
 
