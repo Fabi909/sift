@@ -841,6 +841,7 @@ async function initCoinDetail(id) {
     if (!coin) { renderCoinNotFound(id); return; }
     renderCoinDetail(coin);
     fetchCoinTrackRecord(id);
+    initChart(id);
   } catch (err) {
     console.error("Failed to load coin detail", err);
     renderCoinNotFound(id);
@@ -886,6 +887,253 @@ function renderCoinDetail(coin) {
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
  
   document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
+}
+ 
+// ---------------------------------------------------------------------------
+// Price History chart (coin detail page)
+//
+// Real OHLC candles from /api/chart/<id>?range=1d|1m|1y, each one already
+// tagged server-side with the Signal status that was in effect at that
+// point in time (see attach_signal_history() in server.py) — rendered as
+// shaded background bands behind the candlesticks, so you can see e.g. "this
+// pump happened while Signal still read Unvalidated" at a glance instead of
+// only knowing today's status.
+//
+// This started as a standalone demo (candlestick-preview.html, fake data,
+// no Signal overlay) — the chart-drawing math below is carried over from
+// that, with the fake data generator swapped for the real fetch and the
+// overlay bands added.
+// ---------------------------------------------------------------------------
+const CHART_BAND_COLORS = { validated: "var(--up)", mixed: "#ffc94d", unvalidated: "var(--down)" };
+ 
+let chartCoinId = null;
+let chartRange = "1d";
+let chartCandles = [];
+let chartTimer = null;
+let chartLastUpdatedAt = 0;
+ 
+function formatAxisPrice(n) {
+  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+ 
+function formatChartDate(ts, range) {
+  const d = new Date(ts);
+  if (range === "1d") return d.toLocaleTimeString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  if (range === "1m") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toLocaleDateString([], { month: "short", year: "numeric" });
+}
+ 
+function setChartStatus(msg) {
+  const el = document.getElementById("chartStatus");
+  if (!el) return;
+  if (msg) { el.textContent = msg; el.style.display = "flex"; }
+  else { el.style.display = "none"; }
+}
+ 
+function renderChart(candles, range) {
+  const svg = document.getElementById("chartSvg");
+  const yAxis = document.getElementById("chartYAxis");
+  const xAxis = document.getElementById("chartXAxis");
+  if (!svg) return;
+ 
+  if (!candles || candles.length === 0) {
+    svg.innerHTML = "";
+    yAxis.innerHTML = "";
+    xAxis.innerHTML = "";
+    document.getElementById("chartRangeStats").textContent = "—";
+    setChartStatus("No chart data available for this coin.");
+    return;
+  }
+  setChartStatus(null);
+ 
+  const width = 600, height = 260, padY = 16, padX = 4;
+  const n = candles.length;
+  const slot = (width - padX * 2) / n;
+  const bodyWidth = Math.max(1.5, slot * 0.6);
+ 
+  const rawHighs = candles.map(c => c[2]);
+  const rawLows = candles.map(c => c[3]);
+  const rawMin = Math.min(...rawLows), rawMax = Math.max(...rawHighs);
+  const rawSpan = (rawMax - rawMin) || 1;
+  // Pad the scale a bit so candles don't touch the very top/bottom edge —
+  // reads more like a real trading chart.
+  const pad = rawSpan * 0.1;
+  const minV = rawMin - pad, maxV = rawMax + pad;
+  const spanV = maxV - minV;
+  const yFor = v => height - padY - ((v - minV) / spanV) * (height - padY * 2);
+ 
+  chartCandles = candles.map(([t, o, h, l, c, status], i) => ({
+    x: padX + slot * i + slot / 2,
+    xStart: padX + slot * i,
+    xEnd: padX + slot * (i + 1),
+    yOpen: yFor(o), yHigh: yFor(h), yLow: yFor(l), yClose: yFor(c),
+    t, o, h, l, c, status: status || null,
+  }));
+ 
+  // ---- Signal-history overlay bands ----
+  // Consecutive candles that share the same status are merged into one
+  // rect instead of one-per-candle, so a multi-candle Validated stretch
+  // reads as a single contiguous band rather than a row of separate
+  // stripes. Candles with no recorded status (status: null — see the big
+  // comment on attach_signal_history() in server.py for why that happens)
+  // get no band at all; an unshaded stretch of chart just means "no Signal
+  // history recorded for this period" rather than being colored as if it
+  // meant something.
+  const bands = [];
+  for (const p of chartCandles) {
+    const last = bands[bands.length - 1];
+    if (last && last.status === p.status) last.xEnd = p.xEnd;
+    else bands.push({ status: p.status, xStart: p.xStart, xEnd: p.xEnd });
+  }
+  const bandRectsHTML = bands
+    .filter(b => b.status && CHART_BAND_COLORS[b.status])
+    .map(b => `<rect x="${b.xStart.toFixed(2)}" y="0" width="${(b.xEnd - b.xStart).toFixed(2)}" height="${height}" fill="${CHART_BAND_COLORS[b.status]}" fill-opacity="0.14"></rect>`)
+    .join("");
+ 
+  // ---- Y-axis: 4 evenly spaced gridlines + price labels ----
+  const gridLevels = [0, 1, 2, 3].map(i => minV + (spanV * i) / 3);
+  const gridlinesHTML = gridLevels.map(v =>
+    `<line class="chart-gridline" x1="0" y1="${yFor(v).toFixed(2)}" x2="${width}" y2="${yFor(v).toFixed(2)}"></line>`
+  ).join("");
+  yAxis.innerHTML = gridLevels.map(v =>
+    `<span style="top:${((yFor(v) / height) * 100).toFixed(2)}%">${formatAxisPrice(v)}</span>`
+  ).join("");
+ 
+  const wicksHTML = chartCandles.map(p => {
+    const color = p.c >= p.o ? "var(--up)" : "var(--down)";
+    return `<line x1="${p.x.toFixed(2)}" y1="${p.yHigh.toFixed(2)}" x2="${p.x.toFixed(2)}" y2="${p.yLow.toFixed(2)}" stroke="${color}" stroke-width="1" vector-effect="non-scaling-stroke"></line>`;
+  }).join("");
+ 
+  const bodiesHTML = chartCandles.map(p => {
+    const color = p.c >= p.o ? "var(--up)" : "var(--down)";
+    const top = Math.min(p.yOpen, p.yClose);
+    const h = Math.max(1, Math.abs(p.yClose - p.yOpen));
+    return `<rect x="${(p.x - bodyWidth / 2).toFixed(2)}" y="${top.toFixed(2)}" width="${bodyWidth.toFixed(2)}" height="${h.toFixed(2)}" fill="${color}"></rect>`;
+  }).join("");
+ 
+  svg.innerHTML = `${bandRectsHTML}${gridlinesHTML}${wicksHTML}${bodiesHTML}<line id="chartCrosshair" class="chart-crosshair" x1="0" y1="0" x2="0" y2="${height}"></line>`;
+ 
+  // ---- X-axis: 5 evenly spaced date labels ----
+  const idxs = [0, Math.round((n - 1) * 0.25), Math.round((n - 1) * 0.5), Math.round((n - 1) * 0.75), n - 1];
+  xAxis.innerHTML = idxs.map(i => {
+    const p = chartCandles[i];
+    const leftPct = (p.x / width) * 100;
+    return `<span style="left:${leftPct.toFixed(2)}%">${formatChartDate(p.t, range)}</span>`;
+  }).join("");
+ 
+  document.getElementById("chartRangeStats").textContent = `Low ${formatPrice(rawMin)}  ·  High ${formatPrice(rawMax)}`;
+  chartLastUpdatedAt = Date.now();
+  document.getElementById("chartUpdated").textContent = "Updated just now";
+}
+ 
+async function loadChart() {
+  if (!chartCoinId) return;
+  try {
+    const res = await fetch(`/api/chart/${encodeURIComponent(chartCoinId)}?range=${chartRange}`);
+    if (!res.ok) { setChartStatus("Couldn't load chart data right now."); return; }
+    const data = await res.json();
+    renderChart(data.candles, data.range || chartRange);
+  } catch (err) {
+    console.error("Failed to load chart", err);
+    setChartStatus("Couldn't load chart data right now.");
+  }
+}
+ 
+function startChartAutoRefresh() {
+  if (chartTimer) clearInterval(chartTimer);
+  // Matches CHART_CACHE_TTL_SECONDS in server.py — refreshing faster than
+  // that would just re-request the same cached response, and refreshing
+  // much slower would mean sitting on stale-looking data for no reason.
+  chartTimer = setInterval(loadChart, 60000);
+}
+ 
+// Ticks the "Updated Xs ago" label every second so it's visible time is
+// actually passing between refreshes, not just a static "just now".
+setInterval(() => {
+  if (!chartCoinId) return;
+  const el = document.getElementById("chartUpdated");
+  if (!el) return;
+  const secs = Math.round((Date.now() - chartLastUpdatedAt) / 1000);
+  el.textContent = secs < 2 ? "Updated just now" : `Updated ${secs}s ago`;
+}, 1000);
+ 
+function initChart(id) {
+  chartCoinId = id;
+  chartRange = "1d";
+  loadChart();
+  startChartAutoRefresh();
+}
+ 
+function chartPointerMove(e) {
+  if (chartCandles.length === 0) return;
+  const svg = document.getElementById("chartSvg");
+  const rect = svg.getBoundingClientRect();
+  if (rect.width === 0) return;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const vbX = ((clientX - rect.left) / rect.width) * 600;
+ 
+  let nearest = chartCandles[0];
+  let bestDist = Math.abs(nearest.x - vbX);
+  for (const p of chartCandles) {
+    const d = Math.abs(p.x - vbX);
+    if (d < bestDist) { bestDist = d; nearest = p; }
+  }
+ 
+  const crosshair = document.getElementById("chartCrosshair");
+  const tooltip = document.getElementById("chartTooltip");
+  const plot = document.getElementById("chartPlot");
+  if (!crosshair || !tooltip || !plot) return;
+ 
+  crosshair.setAttribute("x1", nearest.x);
+  crosshair.setAttribute("x2", nearest.x);
+  crosshair.style.opacity = "1";
+ 
+  const up = nearest.c >= nearest.o;
+  const signalStatus = nearest.status;
+  const signalLabel = signalStatus ? SIGNAL_LABELS[signalStatus] : "No Signal history";
+  tooltip.innerHTML = `
+    <div class="chart-tt-date">${formatChartDate(nearest.t, chartRange)}</div>
+    <div class="chart-tt-ohlc">
+      <span>O ${formatPrice(nearest.o)}</span>
+      <span>H ${formatPrice(nearest.h)}</span>
+      <span>L ${formatPrice(nearest.l)}</span>
+      <span class="${up ? "up" : "down"}">C ${formatPrice(nearest.c)}</span>
+    </div>
+    <div class="chart-tt-signal ${signalStatus || "none"}">Signal: ${signalLabel}</div>`;
+  tooltip.style.opacity = "1";
+ 
+  const plotRect = plot.getBoundingClientRect();
+  const relX = (nearest.x / 600) * plotRect.width;
+  const tooltipWidth = 165;
+  const left = Math.max(4, Math.min(plotRect.width - tooltipWidth - 4, relX - tooltipWidth / 2));
+  tooltip.style.left = left + "px";
+}
+ 
+function chartPointerLeave() {
+  const crosshair = document.getElementById("chartCrosshair");
+  const tooltip = document.getElementById("chartTooltip");
+  if (crosshair) crosshair.style.opacity = "0";
+  if (tooltip) tooltip.style.opacity = "0";
+}
+ 
+const chartPlotEl = document.getElementById("chartPlot");
+if (chartPlotEl) {
+  chartPlotEl.addEventListener("mousemove", chartPointerMove);
+  chartPlotEl.addEventListener("mouseleave", chartPointerLeave);
+  chartPlotEl.addEventListener("touchmove", chartPointerMove, { passive: true });
+  chartPlotEl.addEventListener("touchend", chartPointerLeave);
+}
+ 
+const chartTfTabsEl = document.getElementById("chartTfTabs");
+if (chartTfTabsEl) {
+  chartTfTabsEl.addEventListener("click", (e) => {
+    const tab = e.target.closest(".chart-tf-tab");
+    if (!tab) return;
+    document.querySelectorAll("#chartTfTabs .chart-tf-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    chartRange = tab.dataset.range;
+    loadChart();
+  });
 }
  
 // ---------------------------------------------------------------------------

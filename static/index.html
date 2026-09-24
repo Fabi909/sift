@@ -153,6 +153,37 @@
       <div id="detailBadgeWrap"></div>
     </div>
 
+    <div class="card detail-chart-card">
+      <div class="card-header-row">
+        <p class="card-title">Price History</p>
+        <div class="chart-tf-tabs" id="chartTfTabs">
+          <div class="chart-tf-tab active" data-range="1d">1D</div>
+          <div class="chart-tf-tab" data-range="1m">1M</div>
+          <div class="chart-tf-tab" data-range="1y">1Y</div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <div class="chart-plot" id="chartPlot">
+          <svg class="chart-svg" id="chartSvg" viewBox="0 0 600 260" preserveAspectRatio="none"></svg>
+          <div class="chart-tooltip" id="chartTooltip"></div>
+          <p class="chart-status" id="chartStatus" style="display:none"></p>
+        </div>
+        <div class="chart-yaxis" id="chartYAxis"></div>
+      </div>
+      <div class="chart-xaxis" id="chartXAxis"></div>
+      <div class="chart-range-stats">
+        <span id="chartRangeStats">&mdash;</span>
+        <span id="chartUpdated"></span>
+      </div>
+      <div class="chart-legend" id="chartLegend">
+        <span class="chart-legend-item validated"><span class="chart-legend-swatch"></span>Validated</span>
+        <span class="chart-legend-item mixed"><span class="chart-legend-swatch"></span>Mixed</span>
+        <span class="chart-legend-item unvalidated"><span class="chart-legend-swatch"></span>Unvalidated</span>
+        <span class="chart-legend-item none"><span class="chart-legend-swatch"></span>No Signal history yet</span>
+      </div>
+      <p class="chart-note">Shaded bands show what the Signal read at each point in time, not just today's status &mdash; 1D uses 30-minute candles, 1M uses 4-hour, 1Y uses 4-day (CoinGecko's own granularity per range).</p>
+    </div>
+
     <div class="card detail-breakdown">
       <p class="card-title">Signal Breakdown</p>
       <p class="detail-reason" id="detailReason">&mdash;</p>

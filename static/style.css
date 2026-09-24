@@ -638,6 +638,74 @@
  
   .signal-badge.lg { padding: 7px 14px; font-size: 0.8rem; }
  
+  /* ---------- Price History chart (coin detail page) ----------
+     Ported from an earlier standalone mockup (candlestick-preview.html) —
+     same chart, but now fed real OHLC data from /api/chart/<id> instead of
+     fake demo candles, and with the Signal-history overlay bands added
+     (see the chart-band-* handling of the SVG in renderChart()/script.js). */
+  .chart-tf-tabs { display: flex; gap: 4px; }
+  .chart-tf-tab {
+    text-align: center; padding: 4px 8px; border-radius: 6px;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s ease;
+  }
+  .chart-tf-tab:hover { color: var(--text); }
+  .chart-tf-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); box-shadow: 0 0 12px var(--accent-soft); }
+ 
+  /* Chart reserves right-side room for price labels and bottom room for
+     date labels, so the plot itself sits in a padded box within chart-wrap. */
+  .chart-wrap { position: relative; height: 260px; margin-top: 14px; padding-right: 54px; }
+  .chart-plot { position: relative; height: 100%; cursor: crosshair; }
+  .chart-svg { width: 100%; height: 100%; display: block; }
+  .chart-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; text-align: center; color: var(--text-faint); font-size: 0.85rem; }
+ 
+  .chart-yaxis { position: absolute; top: 0; right: 0; width: 54px; height: 100%; pointer-events: none; }
+  .chart-yaxis span {
+    position: absolute; right: 0; transform: translateY(-50%);
+    font-size: 0.66rem; color: var(--text-faint); font-variant-numeric: tabular-nums;
+    background: var(--surface); padding: 1px 4px 1px 6px;
+  }
+ 
+  .chart-xaxis { position: relative; height: 16px; margin-top: 4px; padding-right: 54px; }
+  .chart-xaxis span { position: absolute; transform: translateX(-50%); font-size: 0.64rem; color: var(--text-faint); white-space: nowrap; }
+  .chart-xaxis span:first-child { transform: translateX(0); }
+  .chart-xaxis span:last-child { transform: translateX(-100%); }
+ 
+  .chart-gridline { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .chart-crosshair { stroke: var(--border-glow); stroke-width: 1; opacity: 0; pointer-events: none; transition: opacity 0.1s ease; }
+  .chart-tooltip {
+    position: absolute; top: 8px; opacity: 0; pointer-events: none;
+    background: #0d1117; border: 1px solid var(--border-glow); border-radius: 8px;
+    padding: 7px 10px; font-size: 0.74rem; text-align: left; white-space: nowrap;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5); transition: opacity 0.1s ease; z-index: 5;
+  }
+  .chart-tt-date { color: var(--text-faint); font-size: 0.68rem; margin-bottom: 4px; }
+  .chart-tt-ohlc { display: flex; gap: 8px; font-size: 0.7rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .chart-tt-ohlc .up { color: var(--up); }
+  .chart-tt-ohlc .down { color: var(--down); }
+  .chart-tt-signal { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); font-size: 0.68rem; font-weight: 700; font-variant-numeric: initial; }
+  .chart-tt-signal.validated { color: var(--up); }
+  .chart-tt-signal.mixed { color: #ffc94d; }
+  .chart-tt-signal.unvalidated { color: var(--down); }
+  .chart-tt-signal.none { color: var(--text-faint); font-weight: 500; }
+ 
+  .chart-range-stats { font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .chart-range-stats span:last-child { font-size: 0.7rem; color: var(--text-faint); font-weight: 400; }
+  .chart-note { font-size: 0.68rem; color: var(--text-faint); margin: 10px 0 0; line-height: 1.4; }
+ 
+  /* Legend for the shaded Signal-history bands behind the candles — without
+     this, a colored stripe behind price action reads as decoration rather
+     than data, especially for someone who hasn't hovered to see the
+     per-candle Signal in the tooltip yet. */
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .chart-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; color: var(--text-faint); }
+  .chart-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .chart-legend-item.validated .chart-legend-swatch { background: var(--up); opacity: 0.5; }
+  .chart-legend-item.mixed .chart-legend-swatch { background: #ffc94d; opacity: 0.5; }
+  .chart-legend-item.unvalidated .chart-legend-swatch { background: var(--down); opacity: 0.5; }
+  .chart-legend-item.none .chart-legend-swatch { background: var(--surface-2); border: 1px solid var(--border-glow); }
+ 
   .detail-breakdown, .detail-coverage, .detail-track-record { margin-bottom: 16px; }
   .detail-reason { font-size: 0.92rem; color: var(--text); margin: 0 0 16px; line-height: 1.5; }
   .detail-metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
