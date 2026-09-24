@@ -701,37 +701,6 @@ def get_coin_track_record(coin_id):
     return jsonify(compute_coin_track_record(coin_id))
 
 
-@app.route("/api/debug")
-def debug_state():
-    # TEMPORARY — remove once the empty-cache mystery is solved. Reports
-    # exactly what THIS process (the one that just handled this very
-    # request) believes about its own state, so we can stop inferring from
-    # log timing and see the truth directly in one HTTP call. Wrapped in its
-    # own try/except that puts the exact error in the response body itself
-    # (status 200 either way) — Render's log viewer was only surfacing the
-    # one-line "Exception on /api/debug" summary, not the actual traceback,
-    # so this sidesteps needing the logs at all.
-    try:
-        return jsonify({
-            "pid": os.getpid(),
-            "background_started_pid": _background_started_pid,
-            "cached_coins_len": len(cached_coins),
-            "cached_coins_id": id(cached_coins),
-            "cached_global": cached_global,
-            "cached_news_len": len(cached_news),
-            "api_key_len": len(API_KEY) if API_KEY else None,
-            "api_key_tail": API_KEY[-4:] if API_KEY else None,
-            "coingecko_base_url": COINGECKO_BASE_URL,
-        })
-    except Exception as e:
-        import traceback
-        return jsonify({
-            "debug_route_error": str(e),
-            "debug_route_error_type": type(e).__name__,
-            "debug_route_traceback": traceback.format_exc(),
-        })
-
-
 def initial_load():
     """Everything needed before the dashboard has real data, run on a
     background thread instead of blocking here at import time. Previously
