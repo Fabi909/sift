@@ -583,16 +583,12 @@
     border: 5px solid transparent;
     border-top-color: #0d1117;
   }
-  /* Hover tooltip disabled for now, per request — the .signal-tooltip markup
-     and base styles above (opacity:0/visibility:hidden by default) are left
-     in place on purpose, so re-enabling this later is just uncommenting the
-     rule below instead of rebuilding it.
+
   .signal-badge:hover .signal-tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
   }
-  */
 
   .tt-more {
     font-size: 0.66rem; color: var(--accent); font-weight: 700;
