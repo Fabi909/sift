@@ -700,6 +700,23 @@ def get_track_record():
 def get_coin_track_record(coin_id):
     return jsonify(compute_coin_track_record(coin_id))
 
+@app.route("/api/debug")
+def debug_state():
+    # TEMPORARY — remove once the empty-cache mystery is solved. Reports
+    # exactly what THIS process (the one that just handled this very
+    # request) believes about its own state, so we can stop inferring from
+    # log timing and see the truth directly in one HTTP call.
+    return jsonify({
+        "pid": os.getpid(),
+        "background_started_pid": _background_started_pid,
+        "cached_coins_len": len(cached_coins),
+        "cached_coins_id": id(cached_coins),
+        "cached_global": cached_global,
+        "cached_news_len": len(cached_news),
+        "api_key_len": len(API_KEY) if API_KEY else None,
+        "api_key_tail": API_KEY[-4:] if API_KEY else None,
+        "coingecko_base_url": COINGECKO_BASE_URL,
+    })
 
 def initial_load():
     """Everything needed before the dashboard has real data, run on a
