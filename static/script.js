@@ -139,14 +139,20 @@ function signalBadgeHTML(coin) {
   const sig = coin.signal;
   if (!sig) return "";
   const label = SIGNAL_LABELS[sig.status] || "Unvalidated";
-  const sourceHTML = sig.source
-    ? `<a href="${sig.source_link || "#"}" target="_blank" rel="noopener">${sig.source}</a>`
-    : "none found";
+  // "Source: none found" used to read like the whole Signal had nothing
+  // behind it, when really it just means the NEWS half of the check came up
+  // empty — the volume half (already spelled out in tt-reason above this)
+  // still has real CoinGecko data driving the status either way. Swapping
+  // the label to "News:" and, when empty, saying so explicitly instead of
+  // the bare "none found" keeps that distinction clear at a glance.
+  const sourceLineHTML = sig.source
+    ? `<div class="tt-source">News: <a href="${sig.source_link || "#"}" target="_blank" rel="noopener">${sig.source}</a></div>`
+    : `<div class="tt-source tt-source-empty">No matching news coverage — Signal is based on trading volume</div>`;
   return `
     <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}
       <div class="signal-tooltip">
         <div class="tt-reason">${sig.reason}</div>
-        <div class="tt-source">Source: ${sourceHTML}</div>
+        ${sourceLineHTML}
         <div class="tt-more">Click for full breakdown &rarr;</div>
       </div>
     </span>`;

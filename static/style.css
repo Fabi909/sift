@@ -1,4 +1,4 @@
-
+ 
   :root {
     --bg: #090c10;
     --surface: #0f141b;
@@ -590,6 +590,7 @@
   }
   .tt-source a { color: var(--accent); font-weight: 700; text-decoration: none; }
   .tt-source a:hover { text-decoration: underline; }
+  .tt-source-empty { font-style: italic; }
   .signal-tooltip::after {
     content: "";
     position: absolute;
