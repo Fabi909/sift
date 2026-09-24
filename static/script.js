@@ -272,7 +272,7 @@ function renderMovers() {
     const pct = getChangeForTf(coin, activeTf);
     const up = pct >= 0;
     return `
-      <div class="mover-row">
+      <div class="mover-row" data-id="${coin.id}">
         <span class="mover-left">
           <span class="mover-rank">${i + 1}</span>
           ${coinDotHTML(coin, "sm")}
@@ -309,7 +309,7 @@ function renderNoiseAlert() {
     const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
     const up = pct >= 0;
     return `
-      <div class="mover-row">
+      <div class="mover-row" data-id="${coin.id}">
         <span class="mover-left">
           <span class="noise-flag"></span>
           ${coinDotHTML(coin, "sm")}
@@ -396,7 +396,7 @@ function renderQuietCoverage() {
     const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
     const up = pct >= 0;
     return `
-      <div class="mover-row">
+      <div class="mover-row" data-id="${coin.id}">
         <span class="mover-left">
           <span class="quiet-flag"></span>
           ${coinDotHTML(coin, "sm")}
@@ -633,7 +633,20 @@ document.getElementById("coinTableBody").addEventListener("click", (e) => {
 
 document.getElementById("watchlistList").addEventListener("click", (e) => {
   const btn = e.target.closest(".watch-remove");
-  if (btn) toggleWatch(btn.dataset.id);
+  if (btn) { toggleWatch(btn.dataset.id); return; }
+  const row = e.target.closest(".watch-row[data-id]");
+  if (row) navigateToCoin(row.dataset.id);
+});
+
+// Top Movers / Noise Alert / Quiet Coverage all render the same .mover-row
+// markup (see the big comment above .mover-row in style.css), so they share
+// one click-to-navigate handler each — same behavior as clicking a row in
+// the Top Coins table.
+["moverList", "noiseList", "quietList"].forEach(id => {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const row = e.target.closest(".mover-row[data-id]");
+    if (row) navigateToCoin(row.dataset.id);
+  });
 });
 
 document.getElementById("watchUpgradeLink").addEventListener("click", openUpgradeModal);
