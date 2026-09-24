@@ -700,6 +700,7 @@ def get_track_record():
 def get_coin_track_record(coin_id):
     return jsonify(compute_coin_track_record(coin_id))
 
+
 @app.route("/api/debug")
 def debug_state():
     # TEMPORARY — remove once the empty-cache mystery is solved. Reports
@@ -730,6 +731,7 @@ def debug_state():
             "debug_route_traceback": traceback.format_exc(),
         })
 
+
 def initial_load():
     """Everything needed before the dashboard has real data, run on a
     background thread instead of blocking here at import time. Previously
@@ -748,19 +750,68 @@ def initial_load():
     snapshot_on_start_if_stale()
 
 
-# init_db() only does local SQLite table setup — no network calls — so unlike
-# the fetches above it's fast enough to run synchronously here. That also
-# avoids a startup race: full_index_refresh_loop (below) writes to the
-# coin_index table from its very first tick, so that table needs to exist
-# before its thread starts, not "eventually" once initial_load() gets to it.
-init_db()
+_background_started_pid = None
 
-threading.Thread(target=initial_load, daemon=True).start()
-threading.Thread(target=price_refresh_loop, daemon=True).start()
-threading.Thread(target=global_refresh_loop, daemon=True).start()
-threading.Thread(target=news_refresh_loop, daemon=True).start()
-threading.Thread(target=snapshot_refresh_loop, daemon=True).start()
-threading.Thread(target=full_index_refresh_loop, daemon=True).start()
+
+def start_background_threads():
+    """Spins up init_db() plus every refresh loop. Pulled into its own
+    function (instead of running loose at module level, which is how this
+    used to work) so it can be safely called again after a fork.
+
+    Why this matters: Gunicorn's worker processes are forked from a master
+    process. If the master ever imports this module before forking (e.g.
+    with preload_app enabled), plain module-level code — like the old bare
+    threading.Thread(...).start() calls — only runs once, in the master, at
+    import time. Threads don't survive a fork: the forked worker gets a
+    frozen snapshot of memory at that instant, not the master's live
+    threads. So the master's threads keep fetching CoinGecko data forever
+    and print successful refreshes, while the worker that actually answers
+    HTTP requests is permanently stuck with whatever cached_coins looked
+    like at fork time (empty, if the fork happened before the first fetch
+    finished). That split — background thread's for the master process no
+    one is talking to, real traffic handled by a worker that never
+    changes — is exactly what caused the dashboard to be stuck on
+    "Loading…" while the logs showed successful refreshes.
+
+    The fix: gunicorn.conf.py's post_fork hook calls this function again in
+    every worker, right after it's forked, guaranteeing the threads run in
+    the same process that serves traffic. The PID-based guard below makes
+    that safe to do — it only re-starts the threads if the calling process
+    is different from whichever process last started them (i.e. we're in a
+    freshly forked child), so it never double-starts within the same
+    process, but it DOES correctly start fresh after a fork even though the
+    plain "already started" flag would otherwise carry over from the
+    parent's memory."""
+    global _background_started_pid
+    current_pid = os.getpid()
+    if _background_started_pid == current_pid:
+        return
+    _background_started_pid = current_pid
+
+    # init_db() only does local SQLite table setup — no network calls — so
+    # unlike the fetches below it's fast enough to run synchronously here.
+    # That also avoids a startup race: full_index_refresh_loop writes to the
+    # coin_index table from its very first tick, so that table needs to
+    # exist before its thread starts, not "eventually" once initial_load()
+    # gets to it.
+    init_db()
+
+    threading.Thread(target=initial_load, daemon=True).start()
+    threading.Thread(target=price_refresh_loop, daemon=True).start()
+    threading.Thread(target=global_refresh_loop, daemon=True).start()
+    threading.Thread(target=news_refresh_loop, daemon=True).start()
+    threading.Thread(target=snapshot_refresh_loop, daemon=True).start()
+    threading.Thread(target=full_index_refresh_loop, daemon=True).start()
+
+
+# Runs at import time regardless of how this module is loaded — covers
+# being run directly (`python server.py`), the test harness (which imports
+# this module via importlib), and Gunicorn workers that import it fresh
+# themselves (the default, no-preload behavior). Under Gunicorn WITH
+# preload_app on, gunicorn.conf.py's post_fork hook calls this again inside
+# each actual worker process after the fork; the PID guard above makes that
+# correctly re-run the startup rather than being skipped.
+start_background_threads()
 
 if __name__ == "__main__":
     # debug=True was left on from local development — it should never run on
