@@ -390,6 +390,14 @@ def fetch_all_coins():
         data = response.json()
         all_coins = all_coins + data
 
+    if not all_coins:
+        # A failed or rate-limited fetch shouldn't wipe out perfectly good
+        # data from the last successful cycle — that would blank out the
+        # whole dashboard because of one bad refresh. Keep showing the last
+        # good data and just try again in 60s.
+        print("Price refresh got no data this cycle (likely rate-limited) — keeping previous", len(cached_coins), "cached coins")
+        return
+
     cached_coins = all_coins
     compute_all_signals()
     print("Price cache refreshed. Total coins cached:", len(cached_coins))
@@ -428,6 +436,15 @@ def refresh_full_coin_index():
                     "x_cg_demo_api_key": API_KEY
                 }
             )
+            if response.status_code == 429:
+                # Rate-limited — back off and retry the same page rather than
+                # giving up on the rest of the index. This job already runs
+                # slowly on purpose (see FULL_INDEX_PAGE_DELAY); an occasional
+                # 429 from sharing the rate limit with the live price/global
+                # loops is expected, not fatal.
+                print("Full coin index rate-limited on page", page, "- backing off 30s")
+                time.sleep(30)
+                continue
             if response.status_code != 200:
                 print("Full coin index stopped at page", page, "- status:", response.status_code)
                 break
@@ -465,6 +482,11 @@ def refresh_full_coin_index():
 
 
 def full_index_refresh_loop():
+    # Give initial_load() (the live hot-set fetch that the dashboard actually
+    # needs to render anything) a head start before this starts competing for
+    # CoinGecko's rate limit — getting real data on screen fast matters more
+    # at startup than the full search index being ready a minute sooner.
+    time.sleep(90)
     while True:
         refresh_full_coin_index()
         time.sleep(FULL_INDEX_REFRESH_HOURS * 3600)
