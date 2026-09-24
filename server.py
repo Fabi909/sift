@@ -423,6 +423,7 @@ def refresh_full_coin_index():
     searchable and to have a working detail page."""
     page = 1
     total = 0
+    consecutive_429s = 0
     conn = sqlite3.connect(DB_PATH)
     try:
         while True:
@@ -437,14 +438,22 @@ def refresh_full_coin_index():
                 }
             )
             if response.status_code == 429:
-                # Rate-limited — back off and retry the same page rather than
-                # giving up on the rest of the index. This job already runs
-                # slowly on purpose (see FULL_INDEX_PAGE_DELAY); an occasional
-                # 429 from sharing the rate limit with the live price/global
-                # loops is expected, not fatal.
-                print("Full coin index rate-limited on page", page, "- backing off 30s")
-                time.sleep(30)
+                # Rate-limited. Retrying is fine ONCE or TWICE, but retrying
+                # forever on every 429 (what this used to do) just keeps
+                # hammering CoinGecko indefinitely, which risks turning a
+                # brief rate-limit into a longer punitive block — the opposite
+                # of what backing off is supposed to do. Give up on this pass
+                # after a few tries and let the next scheduled run (in
+                # FULL_INDEX_REFRESH_HOURS) try again instead.
+                consecutive_429s += 1
+                if consecutive_429s > 3:
+                    print("Full coin index still rate-limited after", consecutive_429s, "tries — giving up on this pass")
+                    break
+                wait = 30 * consecutive_429s
+                print("Full coin index rate-limited on page", page, "- backing off", wait, "s (attempt", consecutive_429s, ")")
+                time.sleep(wait)
                 continue
+            consecutive_429s = 0
             if response.status_code != 200:
                 print("Full coin index stopped at page", page, "- status:", response.status_code)
                 break
@@ -482,11 +491,14 @@ def refresh_full_coin_index():
 
 
 def full_index_refresh_loop():
-    # Give initial_load() (the live hot-set fetch that the dashboard actually
-    # needs to render anything) a head start before this starts competing for
-    # CoinGecko's rate limit — getting real data on screen fast matters more
-    # at startup than the full search index being ready a minute sooner.
-    time.sleep(90)
+    # Give the live hot-set loop (price_refresh_loop/global_refresh_loop —
+    # what the dashboard actually needs to render anything) a long, fully
+    # clear runway before this starts competing for CoinGecko's rate limit
+    # at all. This was 90 seconds, which turned out not to be enough
+    # separation once a rate-limit backoff bug had this job hammering
+    # CoinGecko continuously — 5 minutes gives real breathing room for things
+    # to recover if the key is in any kind of cooldown.
+    time.sleep(300)
     while True:
         refresh_full_coin_index()
         time.sleep(FULL_INDEX_REFRESH_HOURS * 3600)
