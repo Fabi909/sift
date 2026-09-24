@@ -8,11 +8,22 @@ import re
 import feedparser
 import os
 import sqlite3
+import resource
+import gc
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+START_TIME = time.time()
+
+# Every outbound requests.get() call below uses this. Without an explicit
+# timeout, requests will wait forever on a connection that hangs — one slow
+# response from CoinGecko or an RSS host would block whichever refresh loop
+# made the call for good, silently freezing that data instead of erroring
+# and trying again next cycle like a normal failure does.
+REQUEST_TIMEOUT_SECONDS = 15
 
 API_KEY = os.getenv("COINGECKO_API_KEY")
 
@@ -387,7 +398,15 @@ def compute_coin_track_record(coin_id):
 def snapshot_refresh_loop():
     while True:
         time.sleep(6 * 3600)
-        snapshot_signals()
+        try:
+            snapshot_signals()
+        except Exception as e:
+            # Without this, an uncaught error here (a locked/corrupt sqlite
+            # file, a disk hiccup, etc.) would kill this thread permanently —
+            # snapshots would silently stop being recorded until the next
+            # redeploy, and nobody would notice until Track Record stopped
+            # updating days later. Log and try again next cycle instead.
+            print(f"snapshot_refresh_loop tick failed, will retry next cycle: {e}")
 
 
 def fetch_all_coins():
@@ -405,7 +424,8 @@ def fetch_all_coins():
                 # _7d_in_currency to every coin, needed for the Top Movers timeframes.
                 "price_change_percentage": "1h,24h,7d",
             },
-            headers=COINGECKO_HEADERS
+            headers=COINGECKO_HEADERS,
+            timeout=REQUEST_TIMEOUT_SECONDS
         )
         if response.status_code != 200:
             print("Stopped at page", page, "- status:", response.status_code)
@@ -459,7 +479,8 @@ def refresh_full_coin_index():
                     "per_page": 250,
                     "page": page,
                 },
-                headers=COINGECKO_HEADERS
+                headers=COINGECKO_HEADERS,
+                timeout=REQUEST_TIMEOUT_SECONDS
             )
             if response.status_code == 429:
                 # Rate-limited. Retrying is fine ONCE or TWICE, but retrying
@@ -524,7 +545,16 @@ def full_index_refresh_loop():
     # to recover if the key is in any kind of cooldown.
     time.sleep(300)
     while True:
-        refresh_full_coin_index()
+        try:
+            refresh_full_coin_index()
+        except Exception as e:
+            # refresh_full_coin_index() already handles 429s and non-200s
+            # itself, but the timeout added to its requests.get() call can
+            # now raise (Timeout/ConnectionError) partway through a ~90-page
+            # pass, and a stray sqlite error could too — either would
+            # otherwise kill this thread for good, silently freezing search
+            # and coin-detail-page results at whatever page it died on.
+            print(f"full_index_refresh_loop tick failed, will retry next cycle: {e}")
         time.sleep(FULL_INDEX_REFRESH_HOURS * 3600)
 
 
@@ -532,7 +562,8 @@ def fetch_global():
     global cached_global
     response = requests.get(
         f"{COINGECKO_BASE_URL}/global",
-        headers=COINGECKO_HEADERS
+        headers=COINGECKO_HEADERS,
+        timeout=REQUEST_TIMEOUT_SECONDS
     )
     if response.status_code != 200:
         print("Global stats fetch failed - status:", response.status_code)
@@ -551,8 +582,22 @@ def fetch_news():
     global cached_news
     all_articles = []
 
+    # feedparser.parse() takes no timeout of its own — pointed straight at a
+    # URL, it uses urllib underneath with no time limit, so one slow or dead
+    # RSS host could hang this whole function (and the thread that calls it)
+    # forever. Fetching with requests first gives an explicit timeout, and
+    # wrapping each source individually means one broken feed (a timeout, a
+    # connection error, a malformed response) only drops that one source for
+    # this cycle instead of throwing an unhandled exception that would kill
+    # news_refresh_loop permanently — silently freezing news until the next
+    # redeploy, since nothing was catching that before.
     for source_name, feed_url in NEWS_SOURCES:
-        feed = feedparser.parse(feed_url)
+        try:
+            resp = requests.get(feed_url, timeout=REQUEST_TIMEOUT_SECONDS, headers={"User-Agent": "Mozilla/5.0 (compatible; SiftBot/1.0)"})
+            feed = feedparser.parse(resp.content)
+        except Exception as e:
+            print(f"News source '{source_name}' failed this cycle: {e}")
+            continue
         for entry in feed.entries:
             all_articles.append({
                 "title": entry.get("title", "Untitled"),
@@ -580,19 +625,38 @@ def fetch_news():
 def price_refresh_loop():
     while True:
         time.sleep(PRICE_REFRESH_INTERVAL_SECONDS)
-        fetch_all_coins()
+        try:
+            fetch_all_coins()
+        except Exception as e:
+            # The timeout added to fetch_all_coins()'s requests.get() call
+            # means a slow CoinGecko response can now raise here instead of
+            # just hanging — without this try/except that would kill the
+            # thread the whole dashboard depends on, freezing every price on
+            # the site at whatever it last showed, forever, with nothing in
+            # the logs to explain why. Log it and let the next tick retry.
+            print(f"price_refresh_loop tick failed, will retry next cycle: {e}")
 
 
 def global_refresh_loop():
     while True:
         time.sleep(GLOBAL_REFRESH_INTERVAL_SECONDS)
-        fetch_global()
+        try:
+            fetch_global()
+        except Exception as e:
+            print(f"global_refresh_loop tick failed, will retry next cycle: {e}")
 
 
 def news_refresh_loop():
     while True:
         time.sleep(300)
-        fetch_news()
+        try:
+            fetch_news()
+        except Exception as e:
+            # fetch_news() already guards each individual RSS source, but this
+            # is a second layer of defense in case something outside that loop
+            # (e.g. compute_all_signals()) ever throws — better a logged miss
+            # this cycle than a permanently frozen news feed.
+            print(f"news_refresh_loop tick failed, will retry next cycle: {e}")
 
 
 @app.route("/")
@@ -689,6 +753,29 @@ def get_news():
 @app.route("/api/global")
 def get_global():
     return jsonify(cached_global)
+
+
+@app.route("/api/health")
+def health():
+    """Lightweight runtime diagnostics, kept in permanently (unlike the old
+    /api/debug) so memory/thread behavior can actually be watched over hours
+    instead of guessed at. peak_rss_mb is the process's peak resident memory
+    so far (Linux reports ru_maxrss in KB, not current usage) — a steady
+    climb across repeated checks over several hours is the leak signature to
+    watch for. thread_count should stay flat once startup settles (main
+    thread + 5 daemon refresh loops = 6; briefly 7 while initial_load's
+    one-shot thread is still running) — a number that keeps creeping up
+    would mean something is spawning threads without them ever finishing.
+    No API keys or other secrets are exposed here."""
+    return jsonify({
+        "uptime_seconds": round(time.time() - START_TIME),
+        "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1),
+        "thread_count": threading.active_count(),
+        "python_object_count": len(gc.get_objects()),
+        "cached_coins_len": len(cached_coins),
+        "cached_news_len": len(cached_news),
+        "pid": os.getpid(),
+    })
 
 
 @app.route("/api/track-record")
