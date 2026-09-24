@@ -18,14 +18,14 @@
 //                   on overlap since it's fresher) so any coin can be found
 //                   by id regardless of which source it came from.
 // ---------------------------------------------------------------------------
-
+ 
 const TABLE_SIZE = 50;
 const TIERS = {
   basic: { label: "Basic", limit: 3 },
   premium: { label: "Premium", limit: 10 },
   super: { label: "Super", limit: Infinity },
 };
-
+ 
 let extraCoins = new Map(); // id -> coin, for search results / watchlisted coins outside liveCoins
 let liveCoins = [];
 let coinsById = new Map();
@@ -34,16 +34,16 @@ let activeTf = "24h";       // Top Movers timeframe
 let sortColumn = "market_cap";  // Top Coins table: which column is currently sorted
 let sortDirection = "desc";     // "asc" | "desc"
 let signalFilter = "all";       // Top Coins table: "all" | "validated" | "mixed" | "unvalidated"
-
+ 
 let watchlist = getWatchlist();
 let userTier = getTier();
-
+ 
 // signalBaseline remembers the last Signal status we saw for each watchlisted
 // coin (persisted, so it survives a reload); signalAlerts is the current,
 // session-only list of un-dismissed "your coin's Signal changed" notices.
 let signalBaseline = getSignalBaseline();
 let signalAlerts = [];
-
+ 
 // ---------------------------------------------------------------------------
 // localStorage (watchlist + plan tier)
 //
@@ -77,7 +77,7 @@ function getSignalBaseline() {
 function setSignalBaseline(obj) {
   try { localStorage.setItem("sift_signal_baseline", JSON.stringify(obj)); } catch (e) {}
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ function formatPrice(n) {
   if (n >= 0.01) return "$" + n.toFixed(4);
   return "$" + n.toPrecision(3); // very small prices (memecoins etc.) keep a few significant digits
 }
-
+ 
 function formatCap(n) {
   if (n == null) return "—";
   if (n >= 1e12) return "$" + (n / 1e12).toFixed(2) + "T";
@@ -95,19 +95,19 @@ function formatCap(n) {
   if (n >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
   return "$" + n.toLocaleString();
 }
-
+ 
 function getChangeForTf(coin, tf) {
   if (tf === "1h") return coin.price_change_percentage_1h_in_currency;
   if (tf === "7d") return coin.price_change_percentage_7d_in_currency;
   return coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
 }
-
+ 
 function changeHTML(pct) {
   if (pct == null) return '<span class="change">—</span>';
   const up = pct >= 0;
   return `<span class="change ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(2)}%</span>`;
 }
-
+ 
 // Deterministic tint for a coin with no logo yet — same coin always gets the
 // same color, like a Slack/Discord initials avatar.
 function tintClass(sym) {
@@ -115,7 +115,7 @@ function tintClass(sym) {
   for (const ch of sym.toUpperCase()) sum += ch.charCodeAt(0);
   return "c" + ((sum % 6) + 1);
 }
-
+ 
 function coinDotHTML(coin, sizeClass = "") {
   const sym = (coin.symbol || "?").toUpperCase();
   const letter = sym.charAt(0);
@@ -132,9 +132,9 @@ function coinDotHTML(coin, sizeClass = "") {
   }
   return `<div class="${cls} ${tint}"><span class="dot-letter">${letter}</span></div>`;
 }
-
+ 
 const SIGNAL_LABELS = { validated: "Validated", mixed: "Mixed", unvalidated: "Unvalidated" };
-
+ 
 function signalBadgeHTML(coin) {
   const sig = coin.signal;
   if (!sig) return "";
@@ -151,13 +151,13 @@ function signalBadgeHTML(coin) {
       </div>
     </span>`;
 }
-
+ 
 function rebuildCoinIndex() {
   coinsById = new Map();
   extraCoins.forEach((c, id) => coinsById.set(id, c));
   liveCoins.forEach(c => coinsById.set(c.id, c)); // liveCoins is fresher, wins on overlap
 }
-
+ 
 // A watchlisted coin might be outside liveCoins (the top ~750). Those still
 // need to render in the Watchlist panel, so fetch them individually from the
 // server's full coin index — cheap, since it's a local SQLite lookup, not a
@@ -175,7 +175,7 @@ async function ensureWatchlistCoinsLoaded() {
   }));
   rebuildCoinIndex();
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Top Coins table
 //
@@ -193,7 +193,7 @@ const SORT_ACCESSORS = {
   change24h: c => c.price_change_percentage_24h_in_currency ?? c.price_change_percentage_24h,
   signal: c => (c.signal ? SIGNAL_ORDER[c.signal.status] : null),
 };
-
+ 
 // Coins missing the sorted field always sink to the bottom, regardless of
 // sort direction — otherwise ascending sorts would shove nulls to the top.
 function compareForSort(av, bv, direction) {
@@ -205,7 +205,7 @@ function compareForSort(av, bv, direction) {
   if (av > bv) return direction === "asc" ? 1 : -1;
   return 0;
 }
-
+ 
 function getTableCoins() {
   if (currentFilter) {
     // The filtered coin might be a search result outside liveCoins (that's
@@ -214,22 +214,22 @@ function getTableCoins() {
     const coin = coinsById.get(currentFilter);
     return coin ? [coin] : [];
   }
-
+ 
   let coins = liveCoins;
   if (signalFilter !== "all") {
     coins = coins.filter(c => c.signal && c.signal.status === signalFilter);
   }
-
+ 
   const accessor = SORT_ACCESSORS[sortColumn] || SORT_ACCESSORS.market_cap;
   coins = coins.slice().sort((a, b) => compareForSort(accessor(a), accessor(b), sortDirection));
-
+ 
   return coins.slice(0, TABLE_SIZE);
 }
-
+ 
 function renderTable() {
   const tbody = document.getElementById("coinTableBody");
   const coins = getTableCoins();
-
+ 
   if (liveCoins.length === 0) {
     tbody.innerHTML = `<tr class="table-loading"><td colspan="6">Loading coins&hellip;</td></tr>`;
     return;
@@ -241,7 +241,7 @@ function renderTable() {
     tbody.innerHTML = `<tr class="table-loading"><td colspan="6">${msg}</td></tr>`;
     return;
   }
-
+ 
   tbody.innerHTML = coins.map(coin => {
     const pinned = watchlist.includes(coin.id);
     return `
@@ -255,7 +255,7 @@ function renderTable() {
       </tr>`;
   }).join("");
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Top Movers
 // ---------------------------------------------------------------------------
@@ -266,12 +266,12 @@ function renderMovers() {
     .slice()
     .sort((a, b) => Math.abs(getChangeForTf(b, activeTf)) - Math.abs(getChangeForTf(a, activeTf)))
     .slice(0, 8);
-
+ 
   if (candidates.length === 0) {
     list.innerHTML = `<p class="loading-row">Loading&hellip;</p>`;
     return;
   }
-
+ 
   list.innerHTML = candidates.map((coin, i) => {
     const pct = getChangeForTf(coin, activeTf);
     const up = pct >= 0;
@@ -286,7 +286,7 @@ function renderMovers() {
       </div>`;
   }).join("");
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Noise Alert (Unvalidated coins, ranked by size of move)
 // ---------------------------------------------------------------------------
@@ -301,14 +301,14 @@ function renderNoiseAlert() {
       return pb - pa;
     })
     .slice(0, 4);
-
+ 
   document.getElementById("noiseCount").textContent = `${flagged.length} flagged`;
-
+ 
   if (flagged.length === 0) {
     list.innerHTML = `<p class="loading-row">Nothing flagged right now.</p>`;
     return;
   }
-
+ 
   list.innerHTML = flagged.map(coin => {
     const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
     const up = pct >= 0;
@@ -323,7 +323,7 @@ function renderNoiseAlert() {
       </div>`;
   }).join("");
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Signal-change alerts — the thing every other tracker only does for price.
 // A coin's Signal status (Validated/Mixed/Unvalidated) is the actual
@@ -333,7 +333,7 @@ function renderNoiseAlert() {
 // poll's status against the last one we saw, per watchlisted coin.
 // ---------------------------------------------------------------------------
 const SIGNAL_ORDER = { unvalidated: 0, mixed: 1, validated: 2 };
-
+ 
 function checkSignalChanges() {
   watchlist.forEach(id => {
     const coin = coinsById.get(id);
@@ -351,12 +351,12 @@ function checkSignalChanges() {
   });
   setSignalBaseline(signalBaseline);
 }
-
+ 
 function renderSignalAlerts() {
   const box = document.getElementById("signalAlertsList");
   if (!box) return;
   if (signalAlerts.length === 0) { box.innerHTML = ""; return; }
-
+ 
   box.innerHTML = signalAlerts.map(a => {
     const dir = SIGNAL_ORDER[a.to] > SIGNAL_ORDER[a.from] ? "up" : "down";
     return `
@@ -366,14 +366,14 @@ function renderSignalAlerts() {
       </div>`;
   }).join("");
 }
-
+ 
 document.getElementById("signalAlertsList").addEventListener("click", (e) => {
   const btn = e.target.closest(".signal-alert-dismiss");
   if (!btn) return;
   signalAlerts = signalAlerts.filter(a => a.key !== btn.dataset.key);
   renderSignalAlerts();
 });
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Quiet Coverage — the mirror image of Noise Alert. Noise Alert
 // catches a price moving with nothing behind it; this catches real news
@@ -388,14 +388,14 @@ function renderQuietCoverage() {
     .filter(c => c.signal && c.signal.source && c.signal.vol_ratio < c.signal.threshold_low)
     .sort((a, b) => a.signal.vol_ratio - b.signal.vol_ratio)
     .slice(0, 4);
-
+ 
   document.getElementById("quietCount").textContent = `${flagged.length} flagged`;
-
+ 
   if (flagged.length === 0) {
     list.innerHTML = `<p class="loading-row">Nothing quiet right now.</p>`;
     return;
   }
-
+ 
   list.innerHTML = flagged.map(coin => {
     const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
     const up = pct >= 0;
@@ -410,7 +410,7 @@ function renderQuietCoverage() {
       </div>`;
   }).join("");
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Signal Track Record — the credibility check on the Signal system
 // itself. The server periodically snapshots every coin's Signal status; this
@@ -429,24 +429,24 @@ function trackRecordBucketHTML(status, bucket) {
       <span class="track-bucket-count">(${bucket.count})</span>
     </div>`;
 }
-
+ 
 function renderTrackRecord(data) {
   const box = document.getElementById("trackRecordBody");
   if (!box) return;
-
+ 
   if (!data || !data.ready) {
     const days = data ? data.oldest_snapshot_days : 0;
     box.innerHTML = `<p class="loading-row">Building track record&hellip; Signal history needs a few days to accumulate before a comparison is meaningful${days ? ` (${days}d of history so far)` : ""}.</p>`;
     return;
   }
-
+ 
   box.innerHTML = data.windows.map(w => `
     <div class="track-window">
       <div class="track-window-label">${w.days} DAYS LATER</div>
       ${["validated", "mixed", "unvalidated"].map(status => trackRecordBucketHTML(status, w[status])).join("")}
     </div>`).join("");
 }
-
+ 
 async function fetchTrackRecord() {
   try {
     const res = await fetch("/api/track-record");
@@ -455,7 +455,7 @@ async function fetchTrackRecord() {
     console.error("Failed to load track record", err);
   }
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: Watchlist + plan badge/modal
 // ---------------------------------------------------------------------------
@@ -463,18 +463,18 @@ function renderWatchlist() {
   const countEl = document.getElementById("watchCount");
   countEl.textContent = TIERS[userTier].label;
   countEl.className = `watch-count tier-${userTier}`;
-
+ 
   renderSignalAlerts();
   renderTierGrid();
-
+ 
   const list = document.getElementById("watchlistList");
   const emptyMsg = `<p class="watchlist-empty">Tap the star on any coin in the table to pin it here for quick, live tracking.</p>`;
-
+ 
   if (watchlist.length === 0) {
     list.innerHTML = emptyMsg;
     return;
   }
-
+ 
   const rows = watchlist.map(id => {
     const coin = coinsById.get(id);
     if (!coin) return ""; // not loaded yet (e.g. right after first paint)
@@ -489,10 +489,10 @@ function renderWatchlist() {
         </span>
       </div>`;
   }).join("");
-
+ 
   list.innerHTML = rows || emptyMsg;
 }
-
+ 
 function renderTierGrid() {
   document.querySelectorAll(".tier-card").forEach(card => {
     const isCurrent = card.dataset.tier === userTier;
@@ -502,17 +502,17 @@ function renderTierGrid() {
     btn.textContent = isCurrent ? "Current plan" : "Upgrade";
   });
 }
-
+ 
 function setStarState(id, pinned) {
   document.querySelectorAll(`.watch-star[data-id="${id}"]`).forEach(btn => {
     btn.classList.toggle("pinned", pinned);
     btn.title = pinned ? "In your watchlist" : "Add to watchlist";
   });
 }
-
+ 
 function openUpgradeModal() { document.getElementById("upgradeOverlay").classList.add("open"); }
 function closeUpgradeModal() { document.getElementById("upgradeOverlay").classList.remove("open"); }
-
+ 
 function toggleWatch(id) {
   if (watchlist.includes(id)) {
     watchlist = watchlist.filter(s => s !== id);
@@ -531,7 +531,7 @@ function toggleWatch(id) {
   setStarState(id, true);
   renderWatchlist();
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: News
 // ---------------------------------------------------------------------------
@@ -547,7 +547,7 @@ function renderNews(articles) {
       <div class="news-meta"><span class="news-source">${a.source}</span><span>&middot;</span><span>${a.published || ""}</span></div>
     </a>`).join("");
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Search — server-side now (queries the full ~21,500-coin index on the
 // server via /api/search), instead of filtering a full coin list already
@@ -557,25 +557,25 @@ function renderNews(articles) {
 // ---------------------------------------------------------------------------
 let searchDebounceTimer = null;
 let searchRequestId = 0;
-
+ 
 function renderSuggestions(query) {
   const box = document.getElementById("suggestions");
   clearTimeout(searchDebounceTimer);
-
+ 
   if (!query) { box.style.display = "none"; box.innerHTML = ""; return; }
-
+ 
   const thisRequestId = ++searchRequestId;
   searchDebounceTimer = setTimeout(async () => {
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       const matches = await res.json();
       if (thisRequestId !== searchRequestId) return; // a newer keystroke already superseded this
-
+ 
       if (matches.length === 0) { box.style.display = "none"; box.innerHTML = ""; return; }
-
+ 
       matches.forEach(c => extraCoins.set(c.id, c)); // cache so clicking a suggestion resolves instantly
       rebuildCoinIndex();
-
+ 
       box.innerHTML = matches.map(c => `
         <div class="suggestion-item" data-id="${c.id}">
           <span class="sugg-left">${coinDotHTML(c, "sm")}<span class="sugg-name">${c.name}</span></span>
@@ -587,12 +587,12 @@ function renderSuggestions(query) {
     }
   }, 200);
 }
-
+ 
 function applySearch(id) {
   currentFilter = id || null;
   renderTable();
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Fetching (see the big comment at the top of this file for the split
 // between liveCoins / extraCoins)
@@ -614,7 +614,7 @@ async function fetchLivePrices() {
     console.error("Failed to load live prices", err);
   }
 }
-
+ 
 async function fetchNewsList() {
   try {
     const res = await fetch("/api/news");
@@ -623,7 +623,7 @@ async function fetchNewsList() {
     console.error("Failed to load news", err);
   }
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Event wiring
 // ---------------------------------------------------------------------------
@@ -634,14 +634,77 @@ document.getElementById("coinTableBody").addEventListener("click", (e) => {
   const row = e.target.closest("tr[data-id]");
   if (row) navigateToCoin(row.dataset.id);
 });
-
+ 
+// ---------------------------------------------------------------------------
+// Signal badge hover tooltip
+//
+// .signal-tooltip is position: fixed (see style.css for why — it used to be
+// position: absolute, which put it inside the clipping box of the <table>
+// and <td> ancestors above it, so it rendered almost entirely cut off,
+// worst for rows near the top of the table where there wasn't room above
+// the row for it to fit inside that box at all). Fixed positioning escapes
+// that clipping, but it means the tooltip's position has to be computed and
+// set here instead of anchored to the badge with CSS percentages.
+//
+// Delegated on #coinTableBody (rather than attached per-badge) because the
+// table body's rows are fully replaced on every price refresh — listeners
+// bound directly to a badge would be silently discarded a few seconds
+// later. mouseover/mouseout are used instead of mouseenter/mouseleave
+// because those don't bubble, so they can't be delegated from a parent.
+// ---------------------------------------------------------------------------
+function positionSignalTooltip(badge) {
+  const tooltip = badge.querySelector(".signal-tooltip");
+  if (!tooltip) return;
+ 
+  const gap = 9;      // space between badge and tooltip, matches the old CSS
+  const margin = 8;   // minimum distance kept from the viewport edge
+  const badgeRect = badge.getBoundingClientRect();
+  // The tooltip is already in the DOM (just invisible via opacity/visibility,
+  // not display:none), so its real rendered size — which varies with how
+  // long this particular coin's reason text is — is available to measure
+  // directly rather than guessed at.
+  const ttRect = tooltip.getBoundingClientRect();
+  const ttWidth = ttRect.width || 210;
+  const ttHeight = ttRect.height || 120;
+ 
+  const fitsAbove = badgeRect.top - gap - ttHeight >= margin;
+  tooltip.classList.toggle("tt-below", !fitsAbove);
+  const top = fitsAbove ? (badgeRect.top - gap - ttHeight) : (badgeRect.bottom + gap);
+ 
+  // Right-aligned to the badge's right edge by default (matches how this
+  // looked before), then clamped so it never runs off either side of the
+  // viewport — the Signal column sits at the far right of the table, so an
+  // unclamped tooltip would routinely overflow off-screen to the right.
+  let left = badgeRect.right - ttWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - ttWidth - margin));
+ 
+  tooltip.style.top = `${Math.max(margin, top)}px`;
+  tooltip.style.left = `${left}px`;
+}
+ 
+document.getElementById("coinTableBody").addEventListener("mouseover", (e) => {
+  const badge = e.target.closest(".signal-badge");
+  if (!badge || badge.contains(e.relatedTarget)) return; // already hovering this badge
+  const tooltip = badge.querySelector(".signal-tooltip");
+  if (!tooltip) return;
+  positionSignalTooltip(badge);
+  tooltip.classList.add("show");
+});
+ 
+document.getElementById("coinTableBody").addEventListener("mouseout", (e) => {
+  const badge = e.target.closest(".signal-badge");
+  if (!badge || badge.contains(e.relatedTarget)) return; // moved within the same badge/tooltip
+  const tooltip = badge.querySelector(".signal-tooltip");
+  if (tooltip) tooltip.classList.remove("show");
+});
+ 
 document.getElementById("watchlistList").addEventListener("click", (e) => {
   const btn = e.target.closest(".watch-remove");
   if (btn) { toggleWatch(btn.dataset.id); return; }
   const row = e.target.closest(".watch-row[data-id]");
   if (row) navigateToCoin(row.dataset.id);
 });
-
+ 
 // Top Movers / Noise Alert / Quiet Coverage all render the same .mover-row
 // markup (see the big comment above .mover-row in style.css), so they share
 // one click-to-navigate handler each — same behavior as clicking a row in
@@ -652,7 +715,7 @@ document.getElementById("watchlistList").addEventListener("click", (e) => {
     if (row) navigateToCoin(row.dataset.id);
   });
 });
-
+ 
 document.getElementById("watchUpgradeLink").addEventListener("click", openUpgradeModal);
 document.getElementById("upgradeClose").addEventListener("click", closeUpgradeModal);
 document.getElementById("upgradeOverlay").addEventListener("click", (e) => {
@@ -667,7 +730,7 @@ document.querySelectorAll("[data-tier-btn]").forEach(btn => {
     closeUpgradeModal();
   });
 });
-
+ 
 document.querySelectorAll(".tf-tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tf-tab").forEach(t => t.classList.remove("active"));
@@ -676,7 +739,7 @@ document.querySelectorAll(".tf-tab").forEach(tab => {
     renderMovers();
   });
 });
-
+ 
 // Top Coins table: sortable column headers. Click sorts by that column;
 // clicking the same column again flips direction. Text columns default to
 // A→Z, numeric columns default to biggest-first, since that's what people
@@ -694,7 +757,7 @@ function updateSortHeaderUI() {
     }
   });
 }
-
+ 
 document.querySelectorAll("thead th.sortable").forEach(th => {
   th.addEventListener("click", () => {
     const key = th.dataset.sort;
@@ -709,7 +772,7 @@ document.querySelectorAll("thead th.sortable").forEach(th => {
   });
 });
 updateSortHeaderUI(); // reflect the default (Market Cap, desc) on first paint
-
+ 
 // Top Coins table: Validated/Mixed/Unvalidated filter tabs.
 document.getElementById("tableFilters").addEventListener("click", (e) => {
   const tab = e.target.closest(".sf-tab");
@@ -718,11 +781,11 @@ document.getElementById("tableFilters").addEventListener("click", (e) => {
   document.querySelectorAll("#tableFilters .sf-tab").forEach(t => t.classList.toggle("active", t === tab));
   renderTable();
 });
-
+ 
 document.getElementById("searchInput").addEventListener("input", (e) => {
   renderSuggestions(e.target.value.trim());
 });
-
+ 
 document.getElementById("suggestions").addEventListener("click", (e) => {
   const item = e.target.closest(".suggestion-item");
   if (!item) return;
@@ -731,7 +794,7 @@ document.getElementById("suggestions").addEventListener("click", (e) => {
   document.getElementById("suggestions").style.display = "none";
   applySearch(id);
 });
-
+ 
 document.getElementById("searchBtn").addEventListener("click", async () => {
   const q = document.getElementById("searchInput").value.trim();
   if (!q) { applySearch(null); return; }
@@ -748,13 +811,13 @@ document.getElementById("searchBtn").addEventListener("click", async () => {
     applySearch(null);
   }
 });
-
+ 
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".search-wrap")) {
     document.getElementById("suggestions").style.display = "none";
   }
 });
-
+ 
 // ---------------------------------------------------------------------------
 // Coin detail page (/coin/<id>) — a dedicated, shareable breakdown of exactly
 // why a coin got the Signal it did: the real volume math plus the matching
@@ -763,7 +826,7 @@ document.addEventListener("click", (e) => {
 function navigateToCoin(id) {
   window.location.href = "/coin/" + encodeURIComponent(id);
 }
-
+ 
 async function initCoinDetail(id) {
   try {
     const res = await fetch(`/api/coin/${encodeURIComponent(id)}`);
@@ -777,12 +840,12 @@ async function initCoinDetail(id) {
     renderCoinNotFound(id);
   }
 }
-
+ 
 function renderCoinDetail(coin) {
   const sig = coin.signal || {};
   const status = sig.status || "unvalidated";
   const label = SIGNAL_LABELS[status] || "Unvalidated";
-
+ 
   document.getElementById("detailCoinDot").innerHTML = coinDotHTML(coin, "lg");
   document.getElementById("detailName").textContent = coin.name;
   document.getElementById("detailSym").textContent = (coin.symbol || "").toUpperCase();
@@ -790,24 +853,24 @@ function renderCoinDetail(coin) {
   document.getElementById("detailBadgeWrap").innerHTML =
     `<span class="signal-badge lg ${status}"><span class="signal-dot"></span>${label}</span>`;
   document.getElementById("detailReason").textContent = sig.reason || "No signal computed yet.";
-
+ 
   const volume = sig.volume ?? coin.total_volume;
   const marketCap = sig.market_cap ?? coin.market_cap;
   document.getElementById("detailVolume").textContent = formatCap(volume);
   document.getElementById("detailMcap").textContent = formatCap(marketCap);
-
+ 
   const ratioPct = (sig.vol_ratio ?? 0) * 100;
   const lowPct = (sig.threshold_low ?? 0.02) * 100;
   const highPct = (sig.threshold_high ?? 0.08) * 100;
   document.getElementById("detailRatio").textContent = ratioPct.toFixed(2) + "%";
-
+ 
   // Bar scale caps at 15% so the two threshold markers stay visible even
   // though most coins fall well under that.
   const barMax = 15;
   document.getElementById("detailRatioFill").style.width = Math.min(100, (ratioPct / barMax) * 100) + "%";
   document.getElementById("detailThresholdLow").style.left = Math.min(100, (lowPct / barMax) * 100) + "%";
   document.getElementById("detailThresholdHigh").style.left = Math.min(100, (highPct / barMax) * 100) + "%";
-
+ 
   const newsCard = document.getElementById("detailNewsCard");
   newsCard.innerHTML = sig.source
     ? `<a class="news-card" href="${sig.source_link || "#"}" target="_blank" rel="noopener">
@@ -815,10 +878,10 @@ function renderCoinDetail(coin) {
          <div class="news-meta"><span class="news-source">${sig.source}</span></div>
        </a>`
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
-
+ 
   document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Render: per-coin Signal History — the single-coin version of the Track
 // Record card. Rather than an average across many coins (which needs a
@@ -835,16 +898,16 @@ function coinTrackWindowHTML(w) {
       <span class="track-bucket-value ${up ? "up" : "down"}">${up ? "+" : ""}${w.change_pct.toFixed(2)}%</span>
     </div>`;
 }
-
+ 
 function renderCoinTrackRecord(data) {
   const box = document.getElementById("coinTrackRecordBody");
   if (!box) return;
-
+ 
   if (!data || !data.has_history) {
     box.innerHTML = `<p class="loading-row">No Signal history recorded yet for this coin &mdash; check back in a few days as it accumulates.</p>`;
     return;
   }
-
+ 
   const pct = data.status_pct || {};
   const checkWord = data.total_snapshots === 1 ? "check" : "checks";
   const breakdownHTML = ["validated", "mixed", "unvalidated"]
@@ -854,11 +917,11 @@ function renderCoinTrackRecord(data) {
         <span class="track-bucket-label ${s}">${SIGNAL_LABELS[s]}</span>
         <span class="track-bucket-count">${pct[s]}% of ${data.total_snapshots} ${checkWord} (${data.oldest_snapshot_days}d tracked)</span>
       </div>`).join("");
-
+ 
   const windowsHTML = data.windows.length
     ? data.windows.map(coinTrackWindowHTML).join("")
     : `<p class="loading-row">Not enough history yet to compare price since a past Signal.</p>`;
-
+ 
   box.innerHTML = `
     <div class="track-window">
       <div class="track-window-label">SIGNAL READING, OVER TIME</div>
@@ -869,7 +932,7 @@ function renderCoinTrackRecord(data) {
       ${windowsHTML}
     </div>`;
 }
-
+ 
 async function fetchCoinTrackRecord(id) {
   try {
     const res = await fetch(`/api/track-record/${encodeURIComponent(id)}`);
@@ -878,7 +941,7 @@ async function fetchCoinTrackRecord(id) {
     console.error("Failed to load coin track record", err);
   }
 }
-
+ 
 function renderCoinNotFound(id) {
   document.getElementById("coinDetailView").innerHTML = `
     <a href="/" class="detail-back">&larr; Back to dashboard</a>
@@ -887,7 +950,7 @@ function renderCoinNotFound(id) {
       <p class="loading-row">Couldn't find a coin matching "${id}". It may not be in our top-cap list, or the id in the link is off.</p>
     </div>`;
 }
-
+ 
 // ---------------------------------------------------------------------------
 // Init — routes to either the live dashboard or a single coin's detail page
 // based on the URL, since both share this one script.js / index.html.
@@ -896,7 +959,7 @@ function initDashboard() {
   fetchLivePrices();
   fetchNewsList();
   fetchTrackRecord();
-
+ 
   // Search no longer needs a periodic full-list fetch at all — it queries
   // the server on demand instead (see the Search section above). Prices
   // don't move fast enough on a research dashboard to need a 3-second
@@ -905,7 +968,7 @@ function initDashboard() {
   setInterval(fetchNewsList, 300000);
   setInterval(fetchTrackRecord, 300000); // changes slowly — snapshots are only taken every few hours
 }
-
+ 
 function init() {
   const match = location.pathname.match(/^\/coin\/([^/]+)/);
   if (match) {
@@ -916,5 +979,6 @@ function init() {
     initDashboard();
   }
 }
-
+ 
 document.addEventListener("DOMContentLoaded", init);
+ 
