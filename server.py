@@ -1,5 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -13,6 +11,7 @@ import sqlite3
 import resource
 import gc
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 load_dotenv()
 
@@ -154,6 +153,23 @@ def find_matching_news(name, symbol, news_list):
     return None
 
 
+def format_usd_compact(n):
+    """'$52.3M' / '$1.2B' / '$421K' style compact formatting, used only to
+    build the plain-English reason sentence in compute_signal() below —
+    mirrors formatCap() in script.js, but this copy's output goes into that
+    sentence, not directly onto the page."""
+    n = n or 0
+    if n >= 1e12:
+        return f"${n / 1e12:.2f}T"
+    if n >= 1e9:
+        return f"${n / 1e9:.1f}B"
+    if n >= 1e6:
+        return f"${n / 1e6:.1f}M"
+    if n >= 1e3:
+        return f"${n / 1e3:.1f}K"
+    return f"${n:.0f}"
+
+
 def compute_signal(coin, news_list):
     market_cap = coin.get("market_cap") or 0
     volume = coin.get("total_volume") or 0
@@ -165,15 +181,37 @@ def compute_signal(coin, news_list):
     matched = find_matching_news(coin.get("name"), coin.get("symbol"), news_list)
     has_news = matched is not None
 
+    # The reason sentence below is built from THIS coin's actual numbers —
+    # its real volume, market cap, and vol_ratio, and the actual article
+    # that matched (if any) — rather than one fixed string per status.
+    # Two coins that both land on "Validated" traded very different amounts
+    # relative to their size; showing the real percentage (and the real
+    # headline, when there is one) is what makes the reason mean something
+    # specific to that coin instead of reading like a canned label.
+    high_pct = f"{HIGH_VOLUME_RATIO * 100:.0f}%"
+    low_pct = f"{LOW_VOLUME_RATIO * 100:.0f}%"
+    volume_clause = (
+        f"Trading {format_usd_compact(volume)} in 24h — "
+        f"{vol_ratio * 100:.1f}% of its {format_usd_compact(market_cap)} market cap"
+    )
+    news_clause = (
+        f'coverage found from {matched["source"]} ("{matched["title"]}")'
+        if has_news else
+        f"no matching coverage found across {len(NEWS_SOURCES)} tracked sources"
+    )
+
     if volume_backs and has_news:
         status = "validated"
-        reason = "Volume backs the move, and coverage matches"
+        reason = f"{volume_clause}, above the {high_pct} threshold for real trading activity, and {news_clause}."
     elif volume_backs and not has_news:
         status = "mixed"
-        reason = "Volume backs the move, but no matching coverage found"
+        reason = f"{volume_clause}, above the {high_pct} threshold for real trading activity, but {news_clause}."
     elif has_news and not volume_thin:
         status = "mixed"
-        reason = "Coverage matches, but volume doesn't fully confirm the move"
+        reason = (
+            f"{volume_clause} — above the {low_pct} thin-trading floor but under the {high_pct} "
+            f"threshold that would fully confirm the move — and {news_clause}."
+        )
     else:
         status = "unvalidated"
         # has_news can still be true here (real coverage exists, but volume is
@@ -181,9 +219,9 @@ def compute_signal(coin, news_list):
         # this is exactly the case the "Quiet Coverage" panel on the dashboard
         # surfaces, and an inaccurate reason here would undercut it.
         reason = (
-            "Coverage exists, but volume is too thin to confirm the move"
+            f"{volume_clause}, under the {low_pct} threshold for real trading activity, even though {news_clause}."
             if has_news else
-            "Move isn't backed by volume, and no matching coverage found"
+            f"{volume_clause}, under the {high_pct} threshold for real trading activity, and {news_clause}."
         )
 
     return {
