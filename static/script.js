@@ -1014,6 +1014,10 @@ let chartTimer = null;
 let chartLastUpdatedAt = 0;
 
 function formatAxisPrice(n) {
+  // Whole dollars round every gridline label to "$0" for sub-$1 coins, so
+  // below $1 the axis instead shows to the nearest millionth (6 decimals) —
+  // still whole-number-only for anything priced $1 and up.
+  if (Math.abs(n) < 1) return "$" + n.toFixed(6);
   return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
