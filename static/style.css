@@ -644,12 +644,30 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 16px;
-    align-items: start;
+    /* align-items defaults to "stretch" here (deliberately not overridden) —
+       every card in the same row stretches to match its row's tallest card,
+       so each one renders as a clean, evenly-bottomed rectangle instead of
+       hugging its own content height. Rows can still differ in height from
+       each other depending on what's in them; only cards within a row are
+       forced equal. */
   }
   /* The closing "What Signal Isn't" card reads as a summary note rather
      than one topic among equals, so it spans every column instead of
      sitting in whatever slot the grid would otherwise give it. */
   .how-it-works-full { grid-column: 1 / -1; }
+
+  /* .track-bucket-label's base rule (used in the dashboard's Track Record
+     sidebar) treats the label as the flexible, truncatable piece and the
+     count as fixed-width — right there, since labels are long coin names
+     and counts are short numbers. On this page it's inverted: the label is
+     always one short fixed word ("Validated"/"Mixed"/"Unvalidated") and the
+     sentence next to it is the long part, so the label must keep its full
+     natural width and let the sentence wrap instead. */
+  #howItWorksView .track-bucket-label {
+    flex: 0 0 auto;
+    overflow: visible;
+    text-overflow: clip;
+  }
 
   .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
   .detail-header-left { display: flex; align-items: center; gap: 14px; }
