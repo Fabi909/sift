@@ -1542,7 +1542,21 @@ function initDashboard() {
   setInterval(fetchSourceReliability, 300000); // same cadence — new source_calls rows land on the same news-refresh cycle
 }
 
+// Highlights whichever nav link matches the current page, instead of
+// "Dashboard" being hardcoded active in the HTML regardless of route. A
+// coin detail page (/coin/<id>) isn't its own nav item — it's reached FROM
+// the dashboard, not a separate section — so it highlights Dashboard too,
+// same as "/" itself.
+function updateNavActiveState() {
+  const path = location.pathname;
+  const activeHref = (path === "/compare" || path === "/how-it-works") ? path : "/";
+  document.querySelectorAll(".nav-link").forEach(link => {
+    link.classList.toggle("active", link.getAttribute("href") === activeHref);
+  });
+}
+
 function init() {
+  updateNavActiveState();
   const match = location.pathname.match(/^\/coin\/([^/]+)/);
   if (match) {
     document.getElementById("dashboardView").style.display = "none";
