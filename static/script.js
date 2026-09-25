@@ -139,6 +139,18 @@ function signalBadgeHTML(coin) {
   const sig = coin.signal;
   if (!sig) return "";
   const label = SIGNAL_LABELS[sig.status] || "Unvalidated";
+  // Divergence flag: the evidence says "real activity" (Validated — volume
+  // AND news both back it), but price is still trending down anyway. Rather
+  // than a whole separate dashboard panel for this, it rides right on the
+  // badge people are already scanning per-coin — a small down-arrow plus one
+  // extra tooltip line, no new data fetched (price and status are both
+  // already on `coin`).
+  const pct = coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h;
+  const diverging = sig.status === "validated" && pct != null && pct < 0;
+  const divergenceIconHTML = diverging ? `<span class="divergence-flag">&#9660;</span>` : "";
+  const divergenceLineHTML = diverging
+    ? `<div class="tt-divergence">&#9660; Still down ${Math.abs(pct).toFixed(1)}% over 24h despite the backing above.</div>`
+    : "";
   // "Source: none found" used to read like the whole Signal had nothing
   // behind it, when really it just means the NEWS half of the check came up
   // empty — the volume half (already spelled out in tt-reason above this)
@@ -156,10 +168,11 @@ function signalBadgeHTML(coin) {
     ? `<div class="tt-confidence">Confidence: <strong>${sig.confidence}</strong>/100</div>`
     : "";
   return `
-    <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}
+    <span class="signal-badge ${sig.status}"><span class="signal-dot"></span>${label}${divergenceIconHTML}
       <div class="signal-tooltip">
         <div class="tt-reason">${sig.reason}</div>
         ${confidenceHTML}
+        ${divergenceLineHTML}
         ${sourceLineHTML}
         <div class="tt-more">Click for full breakdown &rarr;</div>
       </div>

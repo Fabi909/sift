@@ -548,6 +548,12 @@
 
   .signal-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; flex-shrink: 0; }
 
+  /* Divergence flag: only ever appears on a Validated badge (green), so it
+     deliberately uses --down (red) rather than currentColor — the whole
+     point is to stand out against the badge's own "this is good" color as a
+     quiet "but watch this" caveat. */
+  .divergence-flag { color: var(--down); font-size: 0.6rem; line-height: 1; margin-left: -1px; }
+
   /* position: fixed (not absolute) on purpose — the badge sits inside a
      <td>, and both <table> and <td> use overflow: hidden elsewhere in this
      file (rounded corners on the table; text ellipsis on cells). An
@@ -589,6 +595,7 @@
   .tt-reason { color: var(--text); margin-bottom: 7px; }
   .tt-confidence { font-size: 0.68rem; color: var(--text-faint); margin-bottom: 7px; }
   .tt-confidence strong { color: var(--text); font-weight: 700; }
+  .tt-divergence { font-size: 0.68rem; color: var(--down); margin-bottom: 7px; }
   .tt-source {
     display: flex; align-items: center; gap: 5px;
     font-size: 0.68rem; color: var(--text-faint);
