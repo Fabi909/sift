@@ -1,3 +1,4 @@
+@'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sift — Crypto Signal, Not Noise</title>
 <link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
 
@@ -17,11 +19,12 @@
     </a>
     <div class="nav-right">
       <a class="nav-link active" href="/">Dashboard</a>
+      <a class="nav-link" href="/compare">Compare</a>
       <div class="live-pill"><span class="live-dot"></span>LIVE</div>
     </div>
   </nav>
 
-  <div class="layout">
+  <div class="layout" id="dashboardView">
 
     <!-- LEFT: watchlist, market stats, noise alert, top movers -->
     <aside class="left-col">
@@ -30,30 +33,11 @@
           <p class="card-title">My Watchlist</p>
           <span class="watch-count" id="watchCount">Basic</span>
         </div>
+        <div id="signalAlertsList"></div>
         <div id="watchlistList">
           <p class="watchlist-empty">Tap the star on any coin in the table to pin it here for quick, live tracking.</p>
         </div>
         <button class="watch-upgrade-link" id="watchUpgradeLink">See plans &rarr;</button>
-      </div>
-
-      <div class="card">
-        <p class="card-title">Market Overview</p>
-        <div class="stat-row">
-          <span class="stat-label">Market Cap</span>
-          <span class="stat-value mono" id="statMarketCap">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">24h Volume</span>
-          <span class="stat-value mono" id="statVolume">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">BTC Dominance</span>
-          <span class="stat-value mono" id="statBtcDom">&mdash;</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Cap Change (24h)</span>
-          <span class="stat-value mono" id="statCapChange">&mdash;</span>
-        </div>
       </div>
 
       <div class="card">
@@ -68,6 +52,16 @@
 
       <div class="card">
         <div class="card-header-row">
+          <p class="card-title">Quiet Coverage</p>
+          <span class="quiet-count" id="quietCount">0 flagged</span>
+        </div>
+        <div id="quietList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
           <p class="card-title">Top Movers</p>
           <div class="tf-tabs">
             <div class="tf-tab" data-tf="1h">1H</div>
@@ -76,6 +70,23 @@
           </div>
         </div>
         <div class="mover-list" id="moverList">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <p class="card-title">Signal Track Record</p>
+          <div class="tf-tabs" id="trackRecordTabs">
+            <div class="tf-tab active" data-view="signal">By Signal</div>
+            <div class="tf-tab" data-view="source">By Source</div>
+          </div>
+        </div>
+        <p class="track-record-sub" id="trackRecordSub">Average price change since each coin's Signal was recorded, grouped by what the Signal said at the time &mdash; the check on whether Validated calls actually hold up better than Unvalidated ones.</p>
+        <div id="trackRecordBody">
+          <p class="loading-row">Loading&hellip;</p>
+        </div>
+        <div id="sourceReliabilityBody" style="display:none">
           <p class="loading-row">Loading&hellip;</p>
         </div>
       </div>
@@ -96,9 +107,22 @@
           <span class="panel-title">Top Coins</span>
           <span class="panel-sub" id="lastUpdated">Loading&hellip;</span>
         </div>
+        <div class="table-filters" id="tableFilters">
+          <div class="sf-tab active" data-filter="all">All</div>
+          <div class="sf-tab" data-filter="validated">Validated</div>
+          <div class="sf-tab" data-filter="mixed">Mixed</div>
+          <div class="sf-tab" data-filter="unvalidated">Unvalidated</div>
+        </div>
         <table>
           <thead>
-            <tr><th class="watch-th"></th><th>Coin</th><th>Price</th><th>Market Cap</th><th>24h</th><th>Signal</th></tr>
+            <tr>
+              <th class="watch-th"></th>
+              <th class="sortable" data-sort="name">Coin<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="price">Price<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="market_cap">Market Cap<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="change24h">24h<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="signal">Signal<span class="sort-arrow"></span></th>
+            </tr>
           </thead>
           <tbody id="coinTableBody">
             <tr class="table-loading"><td colspan="6">Loading coins&hellip;</td></tr>
@@ -117,6 +141,131 @@
       </div>
     </aside>
 
+  </div>
+
+  <!-- Per-coin Signal breakdown page (shown instead of the dashboard when the
+       URL is /coin/<id> — see renderRoute() in script.js) -->
+  <div class="detail-view" id="coinDetailView" style="display:none">
+    <a href="/" class="detail-back">&larr; Back to dashboard</a>
+
+    <div class="card detail-header">
+      <div class="detail-header-left">
+        <div id="detailCoinDot"></div>
+        <div>
+          <div class="detail-name-row">
+            <span class="detail-name" id="detailName">&mdash;</span>
+            <span class="detail-sym" id="detailSym"></span>
+          </div>
+          <div class="detail-price mono" id="detailPrice">&mdash;</div>
+        </div>
+      </div>
+      <div id="detailBadgeWrap"></div>
+    </div>
+
+    <div class="card detail-chart-card">
+      <div class="card-header-row">
+        <p class="card-title">Price History</p>
+        <div class="chart-tf-tabs" id="chartTfTabs">
+          <div class="chart-tf-tab active" data-range="1d">1D</div>
+          <div class="chart-tf-tab" data-range="1m">1M</div>
+          <div class="chart-tf-tab" data-range="1y">1Y</div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <div class="chart-plot" id="chartPlot">
+          <svg class="chart-svg" id="chartSvg" viewBox="0 0 600 260" preserveAspectRatio="none"></svg>
+          <div class="chart-tooltip" id="chartTooltip"></div>
+          <p class="chart-status" id="chartStatus" style="display:none"></p>
+        </div>
+        <div class="chart-yaxis" id="chartYAxis"></div>
+      </div>
+      <div class="chart-xaxis" id="chartXAxis"></div>
+      <div class="chart-range-stats">
+        <span id="chartRangeStats">&mdash;</span>
+        <span id="chartUpdated"></span>
+      </div>
+      <div class="chart-legend" id="chartLegend">
+        <span class="chart-legend-item validated"><span class="chart-legend-swatch"></span>Validated</span>
+        <span class="chart-legend-item mixed"><span class="chart-legend-swatch"></span>Mixed</span>
+        <span class="chart-legend-item unvalidated"><span class="chart-legend-swatch"></span>Unvalidated</span>
+        <span class="chart-legend-item none"><span class="chart-legend-swatch"></span>No Signal history yet</span>
+      </div>
+      <p class="chart-note">Shaded bands show what the Signal read at each point in time, not just today's status &mdash; 1D uses 30-minute candles, 1M uses 4-hour, 1Y uses 4-day (CoinGecko's own granularity per range).</p>
+    </div>
+
+    <div class="card detail-breakdown">
+      <p class="card-title">Signal Breakdown</p>
+      <p class="detail-reason" id="detailReason">&mdash;</p>
+
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">24h Volume</span>
+        <span class="detail-metric-value mono" id="detailVolume">&mdash;</span>
+      </div>
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">Market Cap</span>
+        <span class="detail-metric-value mono" id="detailMcap">&mdash;</span>
+      </div>
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">Volume / Market Cap</span>
+        <span class="detail-metric-value mono" id="detailRatio">&mdash;</span>
+      </div>
+      <div class="detail-metric-row">
+        <span class="detail-metric-label">Signal Confidence</span>
+        <span class="detail-metric-value mono" id="detailConfidence">&mdash;</span>
+      </div>
+
+      <div class="detail-ratio-bar">
+        <div class="detail-ratio-track">
+          <div class="detail-ratio-fill" id="detailRatioFill"></div>
+          <div class="detail-ratio-threshold" id="detailThresholdLow" title="Below this, trading is considered thin"></div>
+          <div class="detail-ratio-threshold high" id="detailThresholdHigh" title="Above this, volume is considered strong"></div>
+        </div>
+        <div class="detail-ratio-labels">
+          <span>Thin trading</span>
+          <span>Strong activity</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card detail-coverage">
+      <p class="card-title">Matching Coverage</p>
+      <div id="detailNewsCard"><p class="loading-row">Loading&hellip;</p></div>
+    </div>
+
+    <div class="card detail-track-record">
+      <p class="card-title">Signal History</p>
+      <div id="coinTrackRecordBody"><p class="loading-row">Loading&hellip;</p></div>
+    </div>
+  </div>
+
+  <!-- Coin Comparison page (/compare) — pick 2-3 coins, see their Signal,
+       confidence, volume and matched news side by side. Frontend-only:
+       reuses /api/coin/<id> and /api/search, no new backend. Per-coin
+       candlestick charts are deliberately left out of this view — the chart
+       module currently assumes a single global chart instance (chartCoinId,
+       one #chartSvg), which doesn't support 2-3 simultaneous charts without
+       a larger refactor. -->
+  <div class="compare-view" id="compareView" style="display:none">
+    <a href="/" class="detail-back">&larr; Back to dashboard</a>
+
+    <div class="compare-head">
+      <h1 class="compare-title">Compare Coins</h1>
+      <p class="compare-sub">Pick 2&ndash;3 coins to see their Signal, confidence, volume, and matched news side by side.</p>
+    </div>
+
+    <div class="card compare-picker">
+      <div class="search-wrap">
+        <div class="search-row">
+          <input class="search-input" type="text" id="compareSearchInput" placeholder="Add a coin to compare..." autocomplete="off">
+        </div>
+        <div class="suggestions" id="compareSuggestions" style="display:none"></div>
+      </div>
+      <div class="compare-chips" id="compareChips"></div>
+    </div>
+
+    <div id="compareTableWrap">
+      <p class="loading-row">Add at least 2 coins above to compare.</p>
+    </div>
   </div>
 
   <div class="upgrade-overlay" id="upgradeOverlay">
@@ -158,3 +307,4 @@
   <script src="/static/script.js"></script>
 </body>
 </html>
+'@ | Set-Content -Path "static\index.html" -Encoding UTF8
