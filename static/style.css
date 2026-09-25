@@ -669,6 +669,25 @@
     text-overflow: clip;
   }
 
+  /* The Three Statuses card sits next to the taller Volume Check card, so
+     grid stretch (above) gives it extra height it doesn't naturally fill.
+     Making the card a flex column and letting the row list grow into the
+     leftover space spreads the three rows out evenly instead of leaving
+     them clumped at the top with blank space underneath. */
+  #howItWorksView .how-it-works-statuses-card {
+    display: flex;
+    flex-direction: column;
+  }
+  #howItWorksView .how-it-works-status-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    justify-content: space-evenly;
+  }
+  #howItWorksView .how-it-works-status-list .track-bucket {
+    padding: 4px 0;
+  }
+
   .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
   .detail-header-left { display: flex; align-items: center; gap: 14px; }
   .coin-dot.lg { width: 48px; height: 48px; font-size: 1.1rem; }

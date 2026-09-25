@@ -287,7 +287,7 @@
     <div class="how-it-works-grid">
     <div class="card">
       <p class="card-title">The Volume Check</p>
-      <p class="detail-reason">Every coin's 24-hour trading volume is compared to its market cap. A big price move on trading volume that's a tiny fraction of the coin's size is easy to fake or coordinate; the same move on volume that's a meaningful share of the whole market cap is much harder to manufacture.</p>
+      <p class="detail-reason">24-hour trading volume is compared to market cap. Thin volume is easy to fake or coordinate &mdash; volume that's a real share of market cap is much harder to manufacture.</p>
       <div class="detail-ratio-bar" style="margin-top:6px;">
         <div class="detail-ratio-track">
           <div class="detail-ratio-fill" style="width:53%; background:linear-gradient(90deg, var(--down), #ffc94d, var(--up));"></div>
@@ -304,43 +304,45 @@
 
     <div class="card">
       <p class="card-title">The News Check</p>
-      <p class="detail-reason">Every coin's name and symbol are matched against roughly 15 tracked crypto news RSS sources, refreshed every 5 minutes. Multiple different outlets independently covering the same coin counts as stronger evidence than one single article does &mdash; the Signal tooltip's "News" line names the source(s) it actually found. When nothing matches, that's stated plainly as no matching news coverage, not folded silently into a generic "no evidence" read &mdash; the volume check above still runs and still means something on its own.</p>
+      <p class="detail-reason">Coin name and symbol are matched against ~15 crypto news RSS sources, refreshed every 5 minutes. Multiple outlets covering a coin counts as stronger evidence than one article &mdash; and no match is stated plainly, never hidden.</p>
     </div>
 
-    <div class="card">
+    <div class="card how-it-works-statuses-card">
       <p class="card-title">The Three Statuses</p>
-      <div class="track-bucket" style="padding:7px 0;">
-        <span class="track-bucket-label validated">Validated</span>
-        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume clears the 8% bar, AND real news coverage matches.</span>
-      </div>
-      <div class="track-bucket" style="padding:7px 0;">
-        <span class="track-bucket-label mixed">Mixed</span>
-        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Either volume clears 8% with no matching news, or news matches while volume sits in the 2&ndash;8% borderline zone.</span>
-      </div>
-      <div class="track-bucket" style="padding:7px 0;">
-        <span class="track-bucket-label unvalidated">Unvalidated</span>
-        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume is under the 2% thin-trading floor, whether or not news happens to mention the coin.</span>
+      <div class="how-it-works-status-list">
+        <div class="track-bucket">
+          <span class="track-bucket-label validated">Validated</span>
+          <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume clears 8% AND news matches.</span>
+        </div>
+        <div class="track-bucket">
+          <span class="track-bucket-label mixed">Mixed</span>
+          <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume clears 8% with no news, or news matches with volume in the 2&ndash;8% zone.</span>
+        </div>
+        <div class="track-bucket">
+          <span class="track-bucket-label unvalidated">Unvalidated</span>
+          <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume is under the 2% thin-trading floor.</span>
+        </div>
       </div>
     </div>
 
     <div class="card">
       <p class="card-title">Signal Confidence (0&ndash;100)</p>
-      <p class="detail-reason">A supplementary score for how <em>strongly</em> a coin clears its status &mdash; it never changes which of the three statuses a coin gets, only how convincingly it got there. Weighted 65% on volume strength (full marks at 16% of market cap traded, twice the "real activity" threshold above) and 35% on news corroboration (40 points per independent source, capped at 100 — so three or more outlets is effectively full marks). Deliberately kept out of the main table and shown only in the Signal tooltip and each coin's detail page, so the at-a-glance badge stays simple while the extra precision is there for anyone who wants it.</p>
+      <p class="detail-reason">How <em>strongly</em> a coin clears its status &mdash; never changes which status it gets, just how convincingly. Weighted 65% volume strength, 35% news corroboration (3+ sources &asymp; full marks). Shown in the Signal tooltip and each coin's detail page.</p>
     </div>
 
     <div class="card">
       <p class="card-title">Signal Track Record</p>
-      <p class="detail-reason">Every coin's Signal status gets snapshotted periodically. Later, each snapshot's price is compared against the coin's price now, bucketed by what the status actually said at snapshot time, across 3/7/14/30-day windows. That's the accountability check on the whole system: if Validated calls don't end up outperforming Unvalidated ones over time, the badge isn't earning its keep. Shown on the dashboard's Signal Track Record card (and per-coin on each coin's own detail page) once enough history has accumulated to make the comparison meaningful.</p>
+      <p class="detail-reason">Each coin's Signal status is snapshotted, then later compared to its price now across 3/7/14/30-day windows. If Validated calls don't outperform Unvalidated ones over time, the badge isn't earning its keep.</p>
     </div>
 
     <div class="card">
       <p class="card-title">Source Reliability</p>
-      <p class="detail-reason">The same accountability idea, grouped by news source instead of by Signal status. The first time an outlet's coverage matches a coin, that call and the coin's price at that moment get recorded; later, the average price change since each source's calls is computed across the same 3/7/14/30-day windows. A source only shows up once it has at least 3 tracked calls old enough for a given window &mdash; not enough history yet just means it isn't ranked, not that it's being counted against zero. Toggle "By Source" on the Track Record card to see it.</p>
+      <p class="detail-reason">The same accountability idea, grouped by news source instead of status. Tracks each source's calls and the average price change since, across the same windows. Needs 3+ tracked calls before a source is ranked. Toggle "By Source" on the Track Record card.</p>
     </div>
 
     <div class="card how-it-works-full">
       <p class="card-title">What Signal Isn't</p>
-      <p class="detail-reason">Sift is a research tool, not financial advice, and it doesn't touch your wallet or execute trades &mdash; it only reads and structures public price and news data that already exists. A Validated status means the evidence backs up that something real is happening, not that the price will keep moving in any particular direction. Always do your own research before acting on anything you see here.</p>
+      <p class="detail-reason">Sift is a research tool, not financial advice &mdash; it doesn't touch your wallet or execute trades. Validated means the evidence backs up real activity, not that price will keep moving. Always do your own research.</p>
     </div>
     </div>
   </div>
