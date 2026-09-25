@@ -1,5 +1,4 @@
- 
-  :root {
+:root {
     --bg: #090c10;
     --surface: #0f141b;
     --surface-2: #161d26;
@@ -17,9 +16,9 @@
     --text-dim: #8b97a3;
     --text-faint: #566270;
   }
- 
+
   * { box-sizing: border-box; }
- 
+
   /* Page-level scrollbar (the one along the very edge of the browser window,
      as opposed to the internal ones on the left column and news panel below).
      Styled onto html, since that's what actually scrolls when the page is
@@ -35,7 +34,7 @@
   html::-webkit-scrollbar-track { background: transparent; }
   html::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 10px; }
   html::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
- 
+
   html, body {
     margin: 0;
     padding: 0;
@@ -44,21 +43,21 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
- 
+
   body {
     background-image:
       radial-gradient(ellipse 1100px 500px at 50% -10%, rgba(124, 92, 255, 0.10), transparent 60%),
       repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 40px),
       repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 40px);
   }
- 
+
   .mono {
     font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
     font-variant-numeric: tabular-nums;
   }
- 
+
   a { color: inherit; }
- 
+
   /* ---------- Nav ---------- */
   nav {
     position: sticky;
@@ -73,7 +72,7 @@
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--border);
   }
- 
+
   .logo {
     display: flex;
     align-items: center;
@@ -87,18 +86,18 @@
   }
   .logo:hover { background: rgba(255,255,255,0.04); }
   .logo:hover .logo-mark { filter: drop-shadow(0 0 10px var(--accent-soft)) drop-shadow(0 0 2px var(--accent)); }
- 
+
   .logo-mark { width: 26px; height: 26px; flex-shrink: 0; transition: filter 0.2s ease; }
- 
+
   .logo-word { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.02em; color: var(--text); }
   .logo-word span { color: var(--brand); }
- 
+
   .nav-right { display: flex; align-items: center; gap: 22px; }
- 
+
   .nav-link { color: var(--text-dim); text-decoration: none; font-size: 0.88rem; font-weight: 600; letter-spacing: 0.01em; transition: color 0.15s ease; }
   .nav-link.active { color: var(--text); }
   .nav-link:hover { color: var(--text); }
- 
+
   .live-pill {
     display: flex; align-items: center; gap: 6px;
     font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
@@ -109,7 +108,7 @@
   .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 6px var(--up); animation: pulse 1.8s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
- 
+
   /* ---------- Layout ---------- */
   .layout {
     max-width: 1440px;
@@ -120,14 +119,14 @@
     gap: 20px;
     align-items: start;
   }
- 
+
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 18px;
   }
- 
+
   .card-title {
     font-size: 0.72rem;
     font-weight: 700;
@@ -136,7 +135,7 @@
     color: var(--text-faint);
     margin: 0 0 14px;
   }
- 
+
   /* ---------- Left column: market stats ---------- */
   /* Sticky columns can only move until they "stick" — after that, if their
      own content (Watchlist + Noise Alert + Quiet Coverage + Top Movers) is
@@ -151,7 +150,7 @@
     overflow-y: auto;
     padding-right: 2px;
   }
- 
+
   /* Ghost scrollbar — invisible until you hover the panel, then fades in as a
      faint thread instead of sitting there full-time. Applies to both places
      that scroll internally: the left column and the news list. Firefox gets
@@ -170,14 +169,14 @@
   }
   .left-col:hover::-webkit-scrollbar-thumb, .news-list:hover::-webkit-scrollbar-thumb { background: var(--text-faint); }
   .left-col:hover::-webkit-scrollbar-thumb:hover, .news-list:hover::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
- 
+
   .fg-gauge { margin-top: 4px; }
   .fg-track { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--down), #ffc94d, var(--up)); position: relative; margin: 10px 0 8px; }
   .fg-marker { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--text); box-shadow: 0 0 8px rgba(255,255,255,0.6); border-radius: 2px; }
   .fg-label { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-faint); }
   .fg-value { text-align: center; font-size: 1.3rem; font-weight: 800; color: var(--brand); margin-top: 6px; }
   .fg-value-label { text-align: center; font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.05em; }
- 
+
   /* mover-row is used by Top Movers, Noise Alert, Quiet Coverage, and the
      Watchlist — all narrow sidebar cards. Without min-width:0 on the shrinking
      pieces, a flex item's default min-width is "auto" (its full content
@@ -200,7 +199,7 @@
   .mover-change { font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
   .mover-change.up { color: var(--up); }
   .mover-change.down { color: var(--down); }
- 
+
   .noise-count { font-size: 0.68rem; font-weight: 700; color: var(--down); background: var(--down-soft); border: 1px solid rgba(255,77,109,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.02em; }
   /* flex-shrink:0 matters here: this dot is a flex item inside .mover-left,
      and without it, a long coin name forcing that row to squeeze will shrink
@@ -208,10 +207,10 @@
      fixed-size dot alone — which is what made it look thinner/misaligned on
      rows with a long name. */
   .noise-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--down); box-shadow: 0 0 6px var(--down); display: inline-block; margin-right: 8px; flex-shrink: 0; }
- 
+
   .card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .card-header-row .card-title { margin: 0; }
- 
+
   /* ---------- Watchlist (freemium hook) ---------- */
   .watch-count {
     font-size: 0.68rem; font-weight: 700;
@@ -243,18 +242,18 @@
     font-size: 0.7rem; opacity: 0.65; padding: 0; flex-shrink: 0; transition: opacity 0.15s ease;
   }
   .signal-alert-dismiss:hover { opacity: 1; }
- 
+
   /* ---------- Quiet Coverage ---------- */
   .quiet-count { font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(124,92,255,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.02em; }
   .quiet-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); display: inline-block; margin-right: 8px; flex-shrink: 0; }
- 
+
   /* ---------- Signal Track Record ---------- */
   .track-record-sub { font-size: 0.74rem; color: var(--text-faint); line-height: 1.5; margin: -6px 0 12px; }
- 
+
   .track-window { padding: 9px 0; border-bottom: 1px solid var(--border); }
   .track-window:last-child { border-bottom: none; }
   .track-window-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.07em; color: var(--text-faint); margin-bottom: 7px; }
- 
+
   .track-bucket { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 0.82rem; }
   /* Same min-width:0 truncation pattern used everywhere else in this sidebar —
      the label is the flexible piece, the value/count are fixed and never shrink.
@@ -274,11 +273,16 @@
   .track-bucket-label.validated::before { background: var(--up); box-shadow: 0 0 6px var(--up); }
   .track-bucket-label.mixed::before { background: #ffc94d; box-shadow: 0 0 6px rgba(255,201,77,0.5); }
   .track-bucket-label.unvalidated::before { background: var(--down); box-shadow: 0 0 6px var(--down); }
-  .track-bucket-value { font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  /* Used by the Source Reliability rows (By Source tab) — those buckets are
+     "3d avg" / "7d avg" etc., not a Validated/Mixed/Unvalidated status, so
+     there's no colored dot to show. Without this override the label would
+     still reserve the dot's 20px padding-left via the base rule above and
+     just leave it visibly empty. */
+  .track-bucket-label.plain { padding-left: 0; }
   .track-bucket-value.up { color: var(--up); }
   .track-bucket-value.down { color: var(--down); }
   .track-bucket-count { color: var(--text-faint); font-size: 0.72rem; flex-shrink: 0; }
- 
+
   .watchlist-empty { font-size: 0.8rem; color: var(--text-faint); padding: 10px 0; line-height: 1.5; }
   .watch-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .watch-row:last-child { border-bottom: none; }
@@ -298,7 +302,7 @@
     border: none; cursor: pointer; letter-spacing: 0.02em; padding: 0; margin-top: 10px;
   }
   .watch-upgrade-link:hover { text-decoration: underline; }
- 
+
   .watch-th, .watch-cell { width: 30px; text-align: center !important; padding-left: 12px !important; padding-right: 2px !important; }
   .watch-star {
     background: none; border: none; cursor: pointer; padding: 0;
@@ -307,7 +311,7 @@
   }
   .watch-star:hover { opacity: 1; transform: scale(1.15); }
   .watch-star.pinned { color: var(--brand); opacity: 1; text-shadow: 0 0 10px var(--brand-soft); }
- 
+
   /* ---------- Upgrade modal ---------- */
   .upgrade-overlay {
     display: none; position: fixed; inset: 0; background: rgba(4,6,9,0.72);
@@ -343,19 +347,19 @@
     border: 1px solid var(--border-glow); background: transparent; color: var(--text); cursor: pointer;
   }
   .tier-card.current .tier-cta { cursor: default; }
- 
+
   /* Per-tier accents: Basic = blue, Premium = purple, Super = pink/purple/maroon */
   .tier-card[data-tier="basic"] { border-color: rgba(76,141,255,0.45); box-shadow: 0 0 18px rgba(76,141,255,0.12); background: linear-gradient(180deg, rgba(76,141,255,0.1), var(--surface-2) 65%); }
   .tier-card[data-tier="basic"] .tier-limit { color: #5c96ff; }
   .tier-card[data-tier="basic"].current { border-color: rgba(76,141,255,0.65); box-shadow: 0 0 20px rgba(76,141,255,0.2); }
   .tier-card[data-tier="basic"] .tier-cta { background: linear-gradient(135deg, #4c8dff, #1d4fd8); border-color: transparent; color: #fff; }
   .tier-card[data-tier="basic"].current .tier-cta { opacity: 0.75; }
- 
+
   .tier-card[data-tier="premium"] { border-color: var(--accent); box-shadow: 0 0 22px rgba(124,92,255,0.18); background: linear-gradient(180deg, rgba(124,92,255,0.12), var(--surface-2) 65%); }
   .tier-card[data-tier="premium"] .tier-limit { color: #b6a6ff; }
   .tier-card[data-tier="premium"] .tier-cta { background: var(--accent); border-color: var(--accent); color: #fff; }
   .tier-card[data-tier="premium"].current .tier-cta { background: rgba(124,92,255,0.22); }
- 
+
   .tier-card[data-tier="super"] { border-color: rgba(255,95,168,0.35); box-shadow: 0 0 22px rgba(255,95,168,0.14); background: linear-gradient(180deg, rgba(255,95,168,0.1), rgba(155,77,255,0.06) 40%, var(--surface-2) 70%); }
   .tier-card[data-tier="super"] .tier-limit {
     background: linear-gradient(135deg, #ff5fa8, #9b4dff 55%, #7a1f4d);
@@ -366,7 +370,7 @@
     border-color: transparent; color: #fff;
   }
   .tier-card[data-tier="super"].current .tier-cta { opacity: 0.75; }
- 
+
   .tf-tabs { display: flex; gap: 4px; }
   .tf-tab {
     text-align: center; padding: 4px 8px; border-radius: 6px;
@@ -379,10 +383,10 @@
     background: var(--accent-soft); border-color: var(--accent);
     color: var(--text); box-shadow: 0 0 12px var(--accent-soft);
   }
- 
+
   /* ---------- Center column ---------- */
   .center-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
- 
+
   .search-wrap { position: relative; }
   .search-row { display: flex; gap: 10px; }
   .search-input {
@@ -392,14 +396,14 @@
   }
   .search-input::placeholder { color: var(--text-faint); }
   .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 0 18px rgba(124, 92, 255, 0.25); }
- 
+
   .search-btn {
     background: var(--brand); color: #14100a; border: none; font-weight: 700; font-size: 0.92rem;
     padding: 14px 22px; border-radius: 10px; cursor: pointer;
     transition: box-shadow 0.15s ease, transform 0.1s ease;
   }
   .search-btn:hover { box-shadow: 0 0 20px var(--brand-soft); transform: translateY(-1px); }
- 
+
   .suggestions {
     position: absolute; top: calc(100% + 8px); left: 0; right: 90px;
     background: var(--surface); border: 1px solid var(--border-glow); border-radius: 10px;
@@ -411,11 +415,11 @@
   .suggestion-item:hover { background: var(--surface-2); }
   .suggestion-item .sym { color: var(--text-faint); font-size: 0.8rem; flex-shrink: 0; }
   .sugg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
- 
+
   .panel-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
   .panel-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
   .panel-sub { font-size: 0.76rem; color: var(--text-faint); }
- 
+
   /* ---------- Top Coins table: Signal filter tabs ---------- */
   .table-filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
   .sf-tab {
@@ -429,7 +433,7 @@
   .sf-tab[data-filter="validated"].active { background: var(--up-soft); border-color: rgba(61,220,132,0.4); color: var(--up); }
   .sf-tab[data-filter="mixed"].active { background: rgba(255,201,77,0.12); border-color: rgba(255,201,77,0.4); color: #ffc94d; }
   .sf-tab[data-filter="unvalidated"].active { background: var(--down-soft); border-color: rgba(255,77,109,0.4); color: var(--down); }
- 
+
   /* table-layout: fixed + explicit column widths below — without this, the
      "auto" layout algorithm hands most of the leftover width to whichever
      column has the loosest content (the Coin column), which both stretches
@@ -454,14 +458,14 @@
      left-aligned regardless of text-align, so its header needs to match —
      otherwise "COIN" visibly drifts right of the coin rows beneath it. */
   thead th:nth-child(2) { text-align: left; }
- 
+
   thead th:nth-child(1) { width: 40px; }
   thead th:nth-child(2) { width: 24%; }
   thead th:nth-child(3) { width: 18%; }
   thead th:nth-child(4) { width: 16%; }
   thead th:nth-child(5) { width: 15%; }
   thead th:nth-child(6) { width: auto; }
- 
+
   /* Sortable column headers — click to sort, click again to flip direction.
      The arrow is positioned absolutely (out of the header's own text flow)
      rather than inline after the label, so it never competes with the label
@@ -478,13 +482,13 @@
     position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
     font-size: 0.6rem; color: var(--accent);
   }
- 
+
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s ease, box-shadow 0.12s ease; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
- 
+
   td { padding: 13px 16px; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
- 
+
   .coin-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .coin-dot {
     width: 26px; height: 26px; border-radius: 50%;
@@ -507,7 +511,7 @@
   .coin-dot.c6 { background: rgba(45, 212, 191, 0.14); border-color: rgba(45, 212, 191, 0.45); color: #2dd4bf; }
   .coin-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .coin-sym { color: var(--text-faint); font-size: 0.8rem; margin-left: 4px; flex-shrink: 0; }
- 
+
   /* No overflow:hidden here on purpose — the name truncation itself lives on
      .mover-name/.sugg-name (each has its own overflow:hidden + ellipsis), so
      this container doesn't need to clip anything. It used to have
@@ -516,14 +520,14 @@
      the left edge since the dot is the first child at x:0 — making it look
      cut off on the left instead of glowing evenly on both sides. */
   .mover-left, .sugg-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
- 
+
   .price { font-weight: 600; }
   .cap-vol { color: var(--text-dim); }
- 
+
   .change { font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
   .change.up { color: var(--up); text-shadow: 0 0 12px var(--up-soft); }
   .change.down { color: var(--down); text-shadow: 0 0 12px var(--down-soft); }
- 
+
   /* ---------- Signal badge ---------- */
   .signal-badge {
     position: relative;
@@ -541,9 +545,9 @@
   .signal-badge.validated { background: var(--up-soft); color: var(--up); border-color: rgba(61,220,132,0.3); }
   .signal-badge.mixed { background: rgba(255,201,77,0.12); color: #ffc94d; border-color: rgba(255,201,77,0.35); }
   .signal-badge.unvalidated { background: var(--down-soft); color: var(--down); border-color: rgba(255,77,109,0.3); }
- 
+
   .signal-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; flex-shrink: 0; }
- 
+
   /* position: fixed (not absolute) on purpose — the badge sits inside a
      <td>, and both <table> and <td> use overflow: hidden elsewhere in this
      file (rounded corners on the table; text ellipsis on cells). An
@@ -617,19 +621,19 @@
     pointer-events: auto;
     transform: translateY(0);
   }
- 
+
   .tt-more {
     font-size: 0.66rem; color: var(--accent); font-weight: 700;
     padding-top: 7px; margin-top: 7px; border-top: 1px solid var(--border);
   }
- 
+
   tbody tr[data-id] { cursor: pointer; }
- 
+
   /* ---------- Coin detail page (/coin/<id>) ---------- */
   .detail-view { max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; }
   .detail-back { display: inline-block; color: var(--text-dim); font-size: 0.85rem; text-decoration: none; margin-bottom: 18px; transition: color 0.15s ease; }
   .detail-back:hover { color: var(--text); }
- 
+
   .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
   .detail-header-left { display: flex; align-items: center; gap: 14px; }
   .coin-dot.lg { width: 48px; height: 48px; font-size: 1.1rem; }
@@ -637,9 +641,9 @@
   .detail-name { font-size: 1.15rem; font-weight: 800; }
   .detail-sym { color: var(--text-faint); font-size: 0.85rem; }
   .detail-price { font-size: 1rem; color: var(--text-dim); margin-top: 2px; }
- 
+
   .signal-badge.lg { padding: 7px 14px; font-size: 0.8rem; }
- 
+
   /* ---------- Price History chart (coin detail page) ----------
      Ported from an earlier standalone mockup (candlestick-preview.html) —
      same chart, but now fed real OHLC data from /api/chart/<id> instead of
@@ -654,26 +658,26 @@
   }
   .chart-tf-tab:hover { color: var(--text); }
   .chart-tf-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); box-shadow: 0 0 12px var(--accent-soft); }
- 
+
   /* Chart reserves right-side room for price labels and bottom room for
      date labels, so the plot itself sits in a padded box within chart-wrap. */
   .chart-wrap { position: relative; height: 260px; margin-top: 14px; padding-right: 54px; }
   .chart-plot { position: relative; height: 100%; cursor: crosshair; }
   .chart-svg { width: 100%; height: 100%; display: block; }
   .chart-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; text-align: center; color: var(--text-faint); font-size: 0.85rem; }
- 
+
   .chart-yaxis { position: absolute; top: 0; right: 0; width: 54px; height: 100%; pointer-events: none; }
   .chart-yaxis span {
     position: absolute; right: 0; transform: translateY(-50%);
     font-size: 0.66rem; color: var(--text-faint); font-variant-numeric: tabular-nums;
     background: var(--surface); padding: 1px 4px 1px 6px;
   }
- 
+
   .chart-xaxis { position: relative; height: 16px; margin-top: 4px; padding-right: 54px; }
   .chart-xaxis span { position: absolute; transform: translateX(-50%); font-size: 0.64rem; color: var(--text-faint); white-space: nowrap; }
   .chart-xaxis span:first-child { transform: translateX(0); }
   .chart-xaxis span:last-child { transform: translateX(-100%); }
- 
+
   .chart-gridline { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .chart-crosshair { stroke: var(--border-glow); stroke-width: 1; opacity: 0; pointer-events: none; transition: opacity 0.1s ease; }
   .chart-tooltip {
@@ -691,11 +695,11 @@
   .chart-tt-signal.mixed { color: #ffc94d; }
   .chart-tt-signal.unvalidated { color: var(--down); }
   .chart-tt-signal.none { color: var(--text-faint); font-weight: 500; }
- 
+
   .chart-range-stats { font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
   .chart-range-stats span:last-child { font-size: 0.7rem; color: var(--text-faint); font-weight: 400; }
   .chart-note { font-size: 0.68rem; color: var(--text-faint); margin: 10px 0 0; line-height: 1.4; }
- 
+
   /* Legend for the shaded Signal-history bands behind the candles — without
      this, a colored stripe behind price action reads as decoration rather
      than data, especially for someone who hasn't hovered to see the
@@ -707,14 +711,14 @@
   .chart-legend-item.mixed .chart-legend-swatch { background: #ffc94d; opacity: 0.5; }
   .chart-legend-item.unvalidated .chart-legend-swatch { background: var(--down); opacity: 0.5; }
   .chart-legend-item.none .chart-legend-swatch { background: var(--surface-2); border: 1px solid var(--border-glow); }
- 
+
   .detail-breakdown, .detail-coverage, .detail-track-record { margin-bottom: 16px; }
   .detail-reason { font-size: 0.92rem; color: var(--text); margin: 0 0 16px; line-height: 1.5; }
   .detail-metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .detail-metric-row:last-of-type { border-bottom: none; }
   .detail-metric-label { font-size: 0.82rem; color: var(--text-dim); }
   .detail-metric-value { font-size: 0.9rem; font-weight: 700; }
- 
+
   .detail-ratio-bar { margin-top: 18px; }
   .detail-ratio-track {
     position: relative; height: 8px; border-radius: 4px;
@@ -731,16 +735,72 @@
   }
   .detail-ratio-threshold.high { background: var(--text-dim); }
   .detail-ratio-labels { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-faint); margin-top: 6px; }
- 
+
   @media (max-width: 720px) {
     .detail-view { padding: 20px 16px 48px; }
     .detail-header { flex-direction: column; align-items: flex-start; gap: 12px; }
   }
- 
+
+  /* ---------- Coin Comparison (/compare) ---------- */
+  .compare-view { max-width: 920px; margin: 0 auto; padding: 32px 20px 60px; }
+  .compare-head { margin: 18px 0 20px; }
+  .compare-title { font-size: 1.3rem; font-weight: 800; margin: 0 0 6px; }
+  .compare-sub { font-size: 0.85rem; color: var(--text-dim); margin: 0; line-height: 1.5; }
+
+  .compare-picker { margin-bottom: 20px; }
+  .compare-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .compare-chips-empty { font-size: 0.8rem; color: var(--text-faint); margin: 0; }
+  .compare-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface-2); border: 1px solid var(--border-glow);
+    border-radius: 20px; padding: 5px 8px 5px 6px; font-size: 0.8rem; font-weight: 600;
+  }
+  .compare-chip-remove {
+    background: none; border: none; cursor: pointer; color: var(--text-faint);
+    font-size: 0.68rem; padding: 0 0 0 4px; line-height: 1; transition: color 0.15s ease;
+  }
+  .compare-chip-remove:hover { color: var(--down); }
+
+  /* Each row (price, 24h change, market cap, ...) is its own CSS grid rather
+     than a <table>, so the label column and N coin columns can share one
+     --compare-cols var set inline per render (2 or 3 coins) instead of
+     hard-coding a fixed column count. */
+  .compare-grid {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 130px repeat(var(--compare-cols), 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row-head { background: var(--surface-2); }
+  .compare-row-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; color: var(--text-faint); text-transform: uppercase; }
+  .compare-col-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .compare-col-name { font-size: 0.86rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .compare-col-sym { font-size: 0.7rem; color: var(--text-faint); }
+  .compare-cell { font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .compare-cell-news { display: flex; flex-direction: column; gap: 2px; white-space: normal; }
+  .compare-cell-news a { color: var(--accent); font-weight: 600; font-size: 0.82rem; text-decoration: none; line-height: 1.3; }
+  .compare-cell-news a:hover { text-decoration: underline; }
+  .compare-news-source { font-size: 0.68rem; color: var(--text-faint); }
+  .compare-cell-empty { color: var(--text-faint); font-style: italic; font-size: 0.8rem; }
+
+  @media (max-width: 720px) {
+    .compare-view { padding: 20px 16px 48px; }
+    .compare-row { grid-template-columns: 88px repeat(var(--compare-cols), minmax(0, 1fr)); padding: 10px; gap: 6px; }
+    .compare-col-sym { display: none; }
+    .compare-cell { font-size: 0.78rem; }
+  }
+
   /* ---------- Right column: news ---------- */
   .right-col { position: sticky; top: 74px; }
   .news-list { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 130px); overflow-y: auto; padding-right: 2px; }
- 
+
   .news-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px 16px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
@@ -750,17 +810,17 @@
   .news-title { color: var(--text); font-size: 0.88rem; font-weight: 600; line-height: 1.4; margin-bottom: 8px; }
   .news-meta { display: flex; align-items: center; gap: 8px; font-size: 0.74rem; color: var(--text-faint); }
   .news-source { color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
- 
+
   /* ---------- Loading / empty states ---------- */
   .loading-row { color: var(--text-faint); font-size: 0.85rem; padding: 16px; text-align: center; }
   .table-loading td { color: var(--text-faint); font-size: 0.85rem; text-align: center; padding: 24px; }
- 
+
   @media (max-width: 1100px) {
     .layout { grid-template-columns: 220px minmax(0, 1fr); }
     .right-col { grid-column: 1 / -1; position: static; }
     .news-list { max-height: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   }
- 
+
   @media (max-width: 720px) {
     .layout { grid-template-columns: 1fr; padding: 20px 16px 48px; }
     /* Sticky is off on mobile (left-col just flows with the page), so the

@@ -12,23 +12,23 @@ import resource
 import gc
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
- 
+
 load_dotenv()
- 
+
 app = Flask(__name__)
 CORS(app)
- 
+
 START_TIME = time.time()
- 
+
 # Every outbound requests.get() call below uses this. Without an explicit
 # timeout, requests will wait forever on a connection that hangs — one slow
 # response from CoinGecko or an RSS host would block whichever refresh loop
 # made the call for good, silently freezing that data instead of erroring
 # and trying again next cycle like a normal failure does.
 REQUEST_TIMEOUT_SECONDS = 15
- 
+
 API_KEY = os.getenv("COINGECKO_API_KEY")
- 
+
 # Paid CoinGecko plans (Basic and up) are a completely separate API from the
 # free Demo tier — different root URL, different auth. Demo used
 # api.coingecko.com with the key as a query param (x_cg_demo_api_key); paid
@@ -38,18 +38,18 @@ API_KEY = os.getenv("COINGECKO_API_KEY")
 # since the code was still built for the old free endpoint/key combo.
 COINGECKO_BASE_URL = "https://pro-api.coingecko.com/api/v3"
 COINGECKO_HEADERS = {"x-cg-pro-api-key": API_KEY}
- 
+
 cached_coins = []       # every coin CoinGecko gives us, each with a "signal" field attached
 cached_news = []
 cached_global = {}      # total market cap / volume / btc dominance, from CoinGecko's /global
- 
+
 # Overridable so test_server.py can point at a throwaway file instead of the
 # real one — see the SIGNAL_HISTORY_DB env var there.
 DB_PATH = os.getenv(
     "SIGNAL_HISTORY_DB",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "signal_history.db")
 )
- 
+
 NEWS_SOURCES = [
     ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
     ("Cointelegraph", "https://cointelegraph.com/rss"),
@@ -76,7 +76,7 @@ NEWS_SOURCES = [
     ("ZyCrypto", "https://zycrypto.com/feed/"),
     ("DL News", "https://www.dlnews.com/arc/outboundfeeds/rss/"),
 ]
- 
+
 # ---------------------------------------------------------------------------
 # Signal Score: Validated / Mixed / Unvalidated
 #
@@ -94,7 +94,7 @@ NEWS_SOURCES = [
 # ---------------------------------------------------------------------------
 HIGH_VOLUME_RATIO = 0.08   # 8%+ of market cap traded in 24h = real activity
 LOW_VOLUME_RATIO = 0.02    # under 2% = thin/quiet trading
- 
+
 # ---------------------------------------------------------------------------
 # Coin coverage: a "live" hot set + a slow, complete search index
 #
@@ -117,7 +117,7 @@ LOW_VOLUME_RATIO = 0.02    # under 2% = thin/quiet trading
 #     universe is.
 # ---------------------------------------------------------------------------
 LIVE_COIN_PAGES = 3              # 750 coins — headroom above the top 300 actually shown live
- 
+
 # These intervals are sized against CoinGecko's paid Basic plan budget:
 # 100,000 credits/month, 300 calls/min. Each /coins/markets or /global call
 # costs 1 credit regardless of per_page, so credits/month is just calls/month.
@@ -132,8 +132,8 @@ PRICE_REFRESH_INTERVAL_SECONDS = 180
 GLOBAL_REFRESH_INTERVAL_SECONDS = 300
 FULL_INDEX_PAGE_DELAY = 4        # seconds between pages while building the full index (per-minute pacing, not the binding constraint now — see above)
 FULL_INDEX_REFRESH_HOURS = 8
- 
- 
+
+
 def find_matching_news(name, symbol, news_list):
     """Look for EVERY cached news article that mentions this coin, not just
     the first one. A coin independently covered by several different outlets
@@ -144,20 +144,20 @@ def find_matching_news(name, symbol, news_list):
     the returned list is too."""
     name = (name or "").strip()
     symbol = (symbol or "").strip()
- 
+
     name_pattern = re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE) if name else None
     # Only match on symbol if it's not a super short/common string (avoids
     # "S" or "ID" matching random words in headlines).
     symbol_pattern = re.compile(r"\b" + re.escape(symbol) + r"\b", re.IGNORECASE) if len(symbol) >= 3 else None
- 
+
     matches = []
     for article in news_list:
         title = article.get("title", "")
         if (name_pattern and name_pattern.search(title)) or (symbol_pattern and symbol_pattern.search(title)):
             matches.append(article)
     return matches
- 
- 
+
+
 def format_usd_compact(n):
     """'$52.3M' / '$1.2B' / '$421K' style compact formatting, used only to
     build the plain-English reason sentence in compute_signal() below —
@@ -173,8 +173,8 @@ def format_usd_compact(n):
     if n >= 1e3:
         return f"${n / 1e3:.1f}K"
     return f"${n:.0f}"
- 
- 
+
+
 def compute_confidence(vol_ratio, source_count):
     """0-100 score for how STRONGLY a coin clears its Validated/Mixed/
     Unvalidated status, not which status it gets — that's still decided
@@ -185,7 +185,7 @@ def compute_confidence(vol_ratio, source_count):
     can't show that difference, so this is the tiebreaker underneath it,
     surfaced only in the hover tooltip and the coin detail page rather
     than as its own column — the badge stays the headline.
- 
+
     Weighted 65/35 toward volume over news: every coin has a volume ratio,
     so it's the always-available primary evidence, while news coverage
     doesn't exist for most coins at most moments and shouldn't be able to
@@ -198,16 +198,16 @@ def compute_confidence(vol_ratio, source_count):
     # (0 -> 1 source is a bigger jump in confidence than 3 -> 4 is).
     news_score = min(100, source_count * 40)
     return round(0.65 * volume_score + 0.35 * news_score)
- 
- 
+
+
 def compute_signal(coin, news_list):
     market_cap = coin.get("market_cap") or 0
     volume = coin.get("total_volume") or 0
     vol_ratio = (volume / market_cap) if market_cap else 0
- 
+
     volume_backs = vol_ratio >= HIGH_VOLUME_RATIO
     volume_thin = vol_ratio < LOW_VOLUME_RATIO
- 
+
     matches = find_matching_news(coin.get("name"), coin.get("symbol"), news_list)
     has_news = len(matches) > 0
     # Distinct outlets, newest-first (matches is already sorted that way).
@@ -218,7 +218,7 @@ def compute_signal(coin, news_list):
     for m in matches:
         if m["source"] not in distinct_sources:
             distinct_sources.append(m["source"])
- 
+
     # The reason sentence below is built from THIS coin's actual numbers —
     # its real volume, market cap, and vol_ratio, and the actual article/
     # sources that matched (if any) — rather than one fixed string per
@@ -233,7 +233,7 @@ def compute_signal(coin, news_list):
         f"Trading {format_usd_compact(volume)} in 24h — "
         f"{vol_ratio * 100:.1f}% of its {format_usd_compact(market_cap)} market cap"
     )
- 
+
     if has_news:
         if len(distinct_sources) == 1:
             sources_desc = distinct_sources[0]
@@ -248,7 +248,7 @@ def compute_signal(coin, news_list):
         )
     else:
         news_clause = f"no matching coverage found across {len(NEWS_SOURCES)} tracked sources"
- 
+
     if volume_backs and has_news:
         status = "validated"
         reason = f"{volume_clause}, above the {high_pct} threshold for real trading activity, and {news_clause}."
@@ -272,7 +272,7 @@ def compute_signal(coin, news_list):
             if has_news else
             f"{volume_clause}, under the {high_pct} threshold for real trading activity, and {news_clause}."
         )
- 
+
     matched = matches[0] if matches else None
     return {
         "status": status,
@@ -300,16 +300,16 @@ def compute_signal(coin, news_list):
         # three-bucket badge stays the at-a-glance read.
         "confidence": compute_confidence(vol_ratio, len(distinct_sources)),
     }
- 
- 
+
+
 def compute_all_signals():
     """Re-tag every cached coin with a fresh signal. Cheap even at a few
     thousand coins x ~15 articles, so it's fine to just recompute in full
     whenever prices or news change."""
     for coin in cached_coins:
         coin["signal"] = compute_signal(coin, cached_news)
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # Signal Track Record
 #
@@ -329,8 +329,8 @@ SNAPSHOT_TOP_N = 500
 SNAPSHOT_RETENTION_DAYS = 120
 TRACK_RECORD_WINDOWS_DAYS = [3, 7, 14, 30]
 TRACK_RECORD_MIN_SAMPLES = 3   # per status, per window, before we'll show it
- 
- 
+
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""
@@ -361,16 +361,29 @@ def init_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_name ON coin_index (name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_symbol ON coin_index (symbol)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS source_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            coin_id TEXT NOT NULL,
+            article_link TEXT NOT NULL,
+            article_title TEXT,
+            price_at_call REAL,
+            ts INTEGER NOT NULL,
+            UNIQUE(source, coin_id, article_link)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_source_calls_source_ts ON source_calls (source, ts)")
     conn.commit()
     conn.close()
- 
- 
+
+
 def snapshot_signals():
     """Record the current signal + price for the top N coins by market cap.
     Called on a loop, and once at startup if we haven't snapshotted recently."""
     if not cached_coins:
         return
- 
+
     now = int(time.time())
     top = sorted(cached_coins, key=lambda c: c.get("market_cap") or 0, reverse=True)[:SNAPSHOT_TOP_N]
     rows = [
@@ -380,7 +393,7 @@ def snapshot_signals():
     ]
     if not rows:
         return
- 
+
     conn = sqlite3.connect(DB_PATH)
     conn.executemany(
         "INSERT INTO signal_snapshots (coin_id, symbol, name, status, price, market_cap, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -390,8 +403,8 @@ def snapshot_signals():
     conn.commit()
     conn.close()
     print(f"Signal snapshot recorded: {len(rows)} coins.")
- 
- 
+
+
 def snapshot_on_start_if_stale():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute("SELECT MAX(ts) FROM signal_snapshots").fetchone()
@@ -399,8 +412,8 @@ def snapshot_on_start_if_stale():
     last_ts = row[0] if row else None
     if not last_ts or (time.time() - last_ts) > 3600:
         snapshot_signals()
- 
- 
+
+
 def compute_track_record():
     """For each window (3/7/14/30 days), find each coin's most recent snapshot
     at least that old, bucket those snapshots by the status they had back
@@ -410,18 +423,18 @@ def compute_track_record():
     to not just be noise from one or two coins."""
     now = int(time.time())
     current_price_by_id = {c["id"]: c.get("current_price") for c in cached_coins}
- 
+
     conn = sqlite3.connect(DB_PATH)
     oldest_row = conn.execute("SELECT MIN(ts) FROM signal_snapshots").fetchone()
     oldest_ts = oldest_row[0] if oldest_row else None
     oldest_age_days = round((now - oldest_ts) / 86400, 1) if oldest_ts else 0
- 
+
     windows = []
     for days in TRACK_RECORD_WINDOWS_DAYS:
         cutoff = now - days * 86400
         if not oldest_ts or oldest_ts > cutoff:
             continue  # no snapshot exists that's old enough yet
- 
+
         # Most recent snapshot per coin, among snapshots old enough for this window.
         rows = conn.execute("""
             SELECT coin_id, status, price FROM (
@@ -431,7 +444,7 @@ def compute_track_record():
                 WHERE ts <= ?
             ) WHERE rn = 1
         """, (cutoff,)).fetchall()
- 
+
         buckets = {"validated": [], "mixed": [], "unvalidated": []}
         for coin_id, status, then_price in rows:
             now_price = current_price_by_id.get(coin_id)
@@ -440,7 +453,7 @@ def compute_track_record():
             pct_change = ((now_price - then_price) / then_price) * 100
             if status in buckets:
                 buckets[status].append(pct_change)
- 
+
         window_out = {}
         for status, changes in buckets.items():
             if len(changes) >= TRACK_RECORD_MIN_SAMPLES:
@@ -450,15 +463,15 @@ def compute_track_record():
                 }
         if window_out:
             windows.append({"days": days, **window_out})
- 
+
     conn.close()
     return {
         "ready": len(windows) > 0,
         "oldest_snapshot_days": oldest_age_days,
         "windows": windows,
     }
- 
- 
+
+
 def compute_coin_track_record(coin_id):
     """The single-coin version of the same idea: instead of averaging across
     many coins (which needs a minimum sample size to mean anything), this
@@ -473,10 +486,10 @@ def compute_coin_track_record(coin_id):
         (coin_id,)
     ).fetchall()
     conn.close()
- 
+
     if not rows:
         return {"has_history": False}
- 
+
     status_counts = {"validated": 0, "mixed": 0, "unvalidated": 0}
     for status, price, ts in rows:
         if status in status_counts:
@@ -487,10 +500,10 @@ def compute_coin_track_record(coin_id):
         for status, count in status_counts.items()
         if count > 0
     }
- 
+
     oldest_age_days = round((now - rows[0][2]) / 86400, 1)
     current_price = next((c.get("current_price") for c in cached_coins if c["id"] == coin_id), None)
- 
+
     windows = []
     if current_price is not None:
         for days in TRACK_RECORD_WINDOWS_DAYS:
@@ -506,7 +519,7 @@ def compute_coin_track_record(coin_id):
             status, then_price = candidate
             pct_change = ((current_price - then_price) / then_price) * 100
             windows.append({"days": days, "status": status, "change_pct": round(pct_change, 2)})
- 
+
     return {
         "has_history": True,
         "oldest_snapshot_days": oldest_age_days,
@@ -514,8 +527,104 @@ def compute_coin_track_record(coin_id):
         "status_pct": status_pct,
         "windows": windows,
     }
- 
- 
+
+
+# ---------------------------------------------------------------------------
+# Source Reliability — the same track-record idea as above, turned on the
+# news sources themselves instead of the Signal status. Every time one of
+# the 15 tracked RSS sources publishes an article that matches a coin (see
+# find_matching_news()), that's recorded as a "call": this source, this
+# coin, at this price. Comparing that price to the coin's price later tells
+# you whether a given source's coverage tends to precede real moves or not —
+# a meta-layer no other coin tracker scores, since it's not just "here's the
+# news," it's "here's whether this outlet's coverage has actually meant
+# anything historically."
+#
+# One row per (source, coin, article) — the UNIQUE constraint on
+# source_calls means the same article seen across several fetch_news()
+# cycles (it stays in cached_news for a while) only gets recorded once, at
+# whatever price was current the first time it was seen.
+# ---------------------------------------------------------------------------
+SOURCE_RELIABILITY_WINDOWS_DAYS = [3, 7, 14, 30]
+SOURCE_RELIABILITY_MIN_SAMPLES = 3  # per source, per window, before we'll show it
+
+
+def record_source_calls():
+    """Called at the end of fetch_news(), once per news-refresh cycle. Walks
+    every live coin against the freshly-fetched news list the same way
+    compute_signal() does internally, but instead of just using the matches
+    to decide Validated/Mixed/Unvalidated, persists each new one so its
+    outcome can be checked later."""
+    if not cached_coins or not cached_news:
+        return
+
+    now = int(time.time())
+    rows = []
+    for coin in cached_coins:
+        price = coin.get("current_price")
+        if price is None:
+            continue
+        matches = find_matching_news(coin.get("name"), coin.get("symbol"), cached_news)
+        for m in matches:
+            if not m.get("link"):
+                continue  # no stable identity to dedupe on — skip rather than risk double-counting
+            rows.append((m["source"], coin["id"], m["link"], m["title"], price, now))
+
+    if not rows:
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    # INSERT OR IGNORE, not INSERT OR REPLACE — the whole point is capturing
+    # the price the FIRST time this article was seen, not the latest time.
+    conn.executemany(
+        "INSERT OR IGNORE INTO source_calls (source, coin_id, article_link, article_title, price_at_call, ts) VALUES (?, ?, ?, ?, ?, ?)",
+        rows
+    )
+    conn.commit()
+    conn.close()
+
+
+def compute_source_reliability():
+    """For each news source, for each window (3/7/14/30 days), average the
+    price change from call-time to now across every call old enough for
+    that window — same shape as compute_track_record() above, just grouped
+    by source instead of by Signal status."""
+    now = int(time.time())
+    current_price_by_id = {c["id"]: c.get("current_price") for c in cached_coins}
+
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT source, coin_id, price_at_call, ts FROM source_calls").fetchall()
+    conn.close()
+
+    by_source = {}
+    for source, coin_id, price_then, ts in rows:
+        by_source.setdefault(source, []).append((coin_id, price_then, ts))
+
+    results = []
+    for source, calls in sorted(by_source.items()):
+        windows = []
+        for days in SOURCE_RELIABILITY_WINDOWS_DAYS:
+            cutoff = now - days * 86400
+            changes = []
+            for coin_id, price_then, ts in calls:
+                if ts > cutoff or not price_then:
+                    continue  # not old enough yet for this window, or no usable price
+                now_price = current_price_by_id.get(coin_id)
+                if now_price is None:
+                    continue
+                changes.append(((now_price - price_then) / price_then) * 100)
+            if len(changes) >= SOURCE_RELIABILITY_MIN_SAMPLES:
+                windows.append({"days": days, "avg_change_pct": round(sum(changes) / len(changes), 2), "count": len(changes)})
+        if windows:
+            results.append({"source": source, "total_calls": len(calls), "windows": windows})
+
+    # Ranked by the shortest window that actually has data, richest (most
+    # calls) sources first within a tie — an easy source-vs-source glance,
+    # not a claim that the ranking itself is statistically rigorous yet.
+    results.sort(key=lambda r: (r["windows"][0]["avg_change_pct"], r["total_calls"]), reverse=True)
+    return {"ready": len(results) > 0, "sources": results}
+
+
 def snapshot_refresh_loop():
     while True:
         time.sleep(6 * 3600)
@@ -528,8 +637,8 @@ def snapshot_refresh_loop():
             # redeploy, and nobody would notice until Track Record stopped
             # updating days later. Log and try again next cycle instead.
             print(f"snapshot_refresh_loop tick failed, will retry next cycle: {e}")
- 
- 
+
+
 def fetch_all_coins():
     global cached_coins
     all_coins = []
@@ -553,7 +662,7 @@ def fetch_all_coins():
             break
         data = response.json()
         all_coins = all_coins + data
- 
+
     if not all_coins:
         # A failed or rate-limited fetch shouldn't wipe out perfectly good
         # data from the last successful cycle — that would blank out the
@@ -561,12 +670,12 @@ def fetch_all_coins():
         # good data and just try again next cycle (PRICE_REFRESH_INTERVAL_SECONDS).
         print("Price refresh got no data this cycle (likely rate-limited) — keeping previous", len(cached_coins), "cached coins")
         return
- 
+
     cached_coins = all_coins
     compute_all_signals()
     print("Price cache refreshed. Total coins cached:", len(cached_coins))
- 
- 
+
+
 def refresh_full_coin_index():
     """Pages through CoinGecko's ENTIRE coin list — not just the small live
     hot set above — and upserts it into the coin_index SQLite table, so
@@ -574,7 +683,7 @@ def refresh_full_coin_index():
     CoinGecko tracks without holding all of them in memory or shipping them
     to every browser tab (that full-list-in-memory-and-over-the-wire pattern
     is what caused the earlier memory limit outage).
- 
+
     This is deliberately paced slowly — one page (250 coins) every
     FULL_INDEX_PAGE_DELAY seconds — rather than fetched as fast as possible.
     On the paid Basic plan the per-minute limit (300 calls/min) is generous
@@ -626,7 +735,7 @@ def refresh_full_coin_index():
             data = response.json()
             if not data:
                 break
- 
+
             now = int(time.time())
             rows = [
                 (c["id"], c.get("symbol"), c.get("name"), c.get("image"),
@@ -654,8 +763,8 @@ def refresh_full_coin_index():
     finally:
         conn.close()
     print(f"Full coin index refreshed: {total} coins across {page - 1} pages.")
- 
- 
+
+
 def full_index_refresh_loop():
     # Give the live hot-set loop (price_refresh_loop/global_refresh_loop —
     # what the dashboard actually needs to render anything) a long, fully
@@ -677,8 +786,8 @@ def full_index_refresh_loop():
             # and coin-detail-page results at whatever page it died on.
             print(f"full_index_refresh_loop tick failed, will retry next cycle: {e}")
         time.sleep(FULL_INDEX_REFRESH_HOURS * 3600)
- 
- 
+
+
 def fetch_global():
     global cached_global
     response = requests.get(
@@ -697,8 +806,8 @@ def fetch_global():
         "market_cap_change_24h": data.get("market_cap_change_percentage_24h_usd"),
     }
     print("Global stats refreshed.")
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # Coin detail page: price chart with a Signal-history overlay
 #
@@ -722,7 +831,7 @@ def fetch_global():
 # frontend leaves those unshaded instead of guessing.
 # ---------------------------------------------------------------------------
 CHART_RANGE_DAYS = {"1d": 1, "1m": 30, "1y": 365}
- 
+
 # Unlike the loops above, this endpoint is hit live, per pageview, by
 # whichever coin's detail page a visitor happens to have open — there's no
 # way to pre-budget it the way PRICE_REFRESH_INTERVAL_SECONDS etc. do for
@@ -732,8 +841,8 @@ CHART_RANGE_DAYS = {"1d": 1, "1m": 30, "1y": 365}
 # CoinGecko call, without needing a background loop or any new storage.
 CHART_CACHE_TTL_SECONDS = 60
 _chart_cache = {}  # (coin_id, range_key) -> (cached_at_epoch, response_dict)
- 
- 
+
+
 def fetch_coin_ohlc(coin_id, days):
     response = requests.get(
         f"{COINGECKO_BASE_URL}/coins/{coin_id}/ohlc",
@@ -745,8 +854,8 @@ def fetch_coin_ohlc(coin_id, days):
         print(f"OHLC fetch failed for {coin_id} ({days}d) - status:", response.status_code)
         return None
     return response.json()  # [[ts_ms, open, high, low, close], ...], oldest first
- 
- 
+
+
 def attach_signal_history(coin_id, candles):
     """Tag each candle with the Signal status that was most recently
     recorded at or before that candle's own timestamp. Both candles and
@@ -754,7 +863,7 @@ def attach_signal_history(coin_id, candles):
     pointer into the snapshot rows rather than a per-candle query."""
     if not candles:
         return candles
- 
+
     end_ts = candles[-1][0] // 1000
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute(
@@ -762,7 +871,7 @@ def attach_signal_history(coin_id, candles):
         (coin_id, end_ts)
     ).fetchall()
     conn.close()
- 
+
     out = []
     idx = 0
     current_status = None
@@ -773,28 +882,28 @@ def attach_signal_history(coin_id, candles):
             idx += 1
         out.append(candle + [current_status])
     return out
- 
- 
+
+
 def get_coin_chart(coin_id, range_key):
     days = CHART_RANGE_DAYS.get(range_key)
     if days is None:
         return None
- 
+
     cache_key = (coin_id, range_key)
     cached = _chart_cache.get(cache_key)
     now = time.time()
     if cached and (now - cached[0]) < CHART_CACHE_TTL_SECONDS:
         return cached[1]
- 
+
     candles = fetch_coin_ohlc(coin_id, days)
     if candles is None:
         return False  # fetch failed — distinct from "never cached" (None) so the route can 502
- 
+
     result = {"range": range_key, "candles": attach_signal_history(coin_id, candles)}
     _chart_cache[cache_key] = (now, result)
     return result
- 
- 
+
+
 def format_published(published_parsed):
     """Turn feedparser's parsed date into one consistent display string —
     'Thu, Sep 24 2026, 5:06 PM' — instead of showing each RSS feed's own raw
@@ -804,7 +913,7 @@ def format_published(published_parsed):
     from card to card. published_parsed can be missing entirely on a
     malformed feed entry, so this returns "" rather than crashing or
     printing a bogus epoch date.
- 
+
     The time shown is whatever feedparser normalized the feed's own
     <pubDate> to, which is UTC — this formats it in the 12-hour AM/PM
     convention but doesn't convert it to any particular local time zone, so
@@ -816,14 +925,14 @@ def format_published(published_parsed):
     date_part = f"{dt.strftime('%a, %b')} {dt.day} {dt.year}"
     time_part = dt.strftime("%I:%M %p").lstrip("0")  # "05:06 PM" -> "5:06 PM"
     return f"{date_part}, {time_part}"
- 
- 
+
+
 def _fetch_one_news_source(source_name, feed_url):
     """Fetch + parse a single RSS source. Never raises — always returns a
     list, empty on any failure — since this runs inside a thread pool where
     an uncaught exception would just vanish rather than being visible to
     whatever's waiting on the result.
- 
+
     feedparser.parse() takes no timeout of its own — pointed straight at a
     URL, it uses urllib underneath with no time limit, so one slow or dead
     RSS host could hang this call forever. Fetching with requests first
@@ -853,11 +962,11 @@ def _fetch_one_news_source(source_name, feed_url):
             "published_parsed": raw_parsed or time.gmtime(0),
         })
     return articles
- 
- 
+
+
 def fetch_news():
     global cached_news
- 
+
     # Fetched concurrently rather than one source at a time. NEWS_SOURCES has
     # grown from 8 to 15 feeds — a sequential loop's worst case (several
     # sources timing out back-to-back, each eating the full
@@ -869,9 +978,9 @@ def fetch_news():
     with ThreadPoolExecutor(max_workers=6) as pool:
         for articles in pool.map(lambda src: _fetch_one_news_source(*src), NEWS_SOURCES):
             all_articles.extend(articles)
- 
+
     all_articles.sort(key=lambda article: article["published_parsed"], reverse=True)
- 
+
     cached_news = []
     for article in all_articles[:30]:
         cached_news.append({
@@ -880,11 +989,12 @@ def fetch_news():
             "source": article["source"],
             "published": article["published"]
         })
- 
+
     compute_all_signals()  # news changed, so signals might too
+    record_source_calls()  # persist any new source/coin/article matches for Source Reliability
     print("News cache refreshed. Total articles cached:", len(cached_news))
- 
- 
+
+
 def price_refresh_loop():
     while True:
         time.sleep(PRICE_REFRESH_INTERVAL_SECONDS)
@@ -898,8 +1008,8 @@ def price_refresh_loop():
             # the site at whatever it last showed, forever, with nothing in
             # the logs to explain why. Log it and let the next tick retry.
             print(f"price_refresh_loop tick failed, will retry next cycle: {e}")
- 
- 
+
+
 def global_refresh_loop():
     while True:
         time.sleep(GLOBAL_REFRESH_INTERVAL_SECONDS)
@@ -907,8 +1017,8 @@ def global_refresh_loop():
             fetch_global()
         except Exception as e:
             print(f"global_refresh_loop tick failed, will retry next cycle: {e}")
- 
- 
+
+
 def news_refresh_loop():
     while True:
         time.sleep(300)
@@ -920,29 +1030,38 @@ def news_refresh_loop():
             # (e.g. compute_all_signals()) ever throws — better a logged miss
             # this cycle than a permanently frozen news feed.
             print(f"news_refresh_loop tick failed, will retry next cycle: {e}")
- 
- 
+
+
 @app.route("/")
 def home():
     return app.send_static_file("index.html")
- 
- 
+
+
 @app.route("/coin/<coin_id>")
 def coin_detail_page(coin_id):
     # Same single-page app shell — script.js reads the URL and renders the
     # per-coin breakdown view instead of the dashboard. This route's only job
     # is making sure a direct link or a page refresh on /coin/<id> works.
     return app.send_static_file("index.html")
- 
- 
+
+
+@app.route("/compare")
+def compare_page():
+    # Same single-page app shell as above — script.js reads location.pathname
+    # (and an optional ?coins=a,b,c query string) and renders the Coin
+    # Comparison view instead of the dashboard. This route's only job is
+    # making sure a direct link or a page refresh on /compare works.
+    return app.send_static_file("index.html")
+
+
 @app.route("/api/prices")
 def get_prices():
     limit = request.args.get("limit", type=int)
     if limit:
         return jsonify(cached_coins[:limit])
     return jsonify(cached_coins)
- 
- 
+
+
 @app.route("/api/search")
 def search_coins():
     """Server-side search over the full coin_index table (every coin
@@ -953,7 +1072,7 @@ def search_coins():
     limit = request.args.get("limit", type=int) or 8
     if not q:
         return jsonify([])
- 
+
     like = f"%{q}%"
     q_lower = q.lower()
     conn = sqlite3.connect(DB_PATH)
@@ -972,15 +1091,15 @@ def search_coins():
         LIMIT ?
     """, (like, like, q_lower, q_lower, limit)).fetchall()
     conn.close()
- 
+
     results = []
     for row in rows:
         coin = dict(row)
         coin["signal"] = compute_signal(coin, cached_news)
         results.append(coin)
     return jsonify(results)
- 
- 
+
+
 @app.route("/api/coin/<coin_id>")
 def get_coin(coin_id):
     """Look up a single coin by id, for the coin detail page. Checks the
@@ -991,7 +1110,7 @@ def get_coin(coin_id):
     coin = next((c for c in cached_coins if c["id"] == coin_id), None)
     if coin:
         return jsonify(coin)
- 
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     row = conn.execute(
@@ -999,15 +1118,15 @@ def get_coin(coin_id):
         (coin_id,)
     ).fetchone()
     conn.close()
- 
+
     if not row:
         return jsonify(None), 404
- 
+
     coin = dict(row)
     coin["signal"] = compute_signal(coin, cached_news)
     return jsonify(coin)
- 
- 
+
+
 @app.route("/api/chart/<coin_id>")
 def get_chart(coin_id):
     """OHLC candles for the coin detail page's Price History chart, each
@@ -1018,23 +1137,23 @@ def get_chart(coin_id):
     range_key = request.args.get("range", "1d")
     if range_key not in CHART_RANGE_DAYS:
         return jsonify({"error": f"range must be one of {list(CHART_RANGE_DAYS)}"}), 400
- 
+
     result = get_coin_chart(coin_id, range_key)
     if result is False:
         return jsonify({"error": "Couldn't fetch chart data right now"}), 502
     return jsonify(result)
- 
- 
+
+
 @app.route("/api/news")
 def get_news():
     return jsonify(cached_news)
- 
- 
+
+
 @app.route("/api/global")
 def get_global():
     return jsonify(cached_global)
- 
- 
+
+
 @app.route("/api/health")
 def health():
     """Lightweight runtime diagnostics, kept in permanently (unlike the old
@@ -1056,18 +1175,23 @@ def health():
         "cached_news_len": len(cached_news),
         "pid": os.getpid(),
     })
- 
- 
+
+
 @app.route("/api/track-record")
 def get_track_record():
     return jsonify(compute_track_record())
- 
- 
+
+
 @app.route("/api/track-record/<coin_id>")
 def get_coin_track_record(coin_id):
     return jsonify(compute_coin_track_record(coin_id))
- 
- 
+
+
+@app.route("/api/source-reliability")
+def get_source_reliability():
+    return jsonify(compute_source_reliability())
+
+
 def initial_load():
     """Everything needed before the dashboard has real data, run on a
     background thread instead of blocking here at import time. Previously
@@ -1084,16 +1208,16 @@ def initial_load():
     fetch_global()
     fetch_news()
     snapshot_on_start_if_stale()
- 
- 
+
+
 _background_started_pid = None
- 
- 
+
+
 def start_background_threads():
     """Spins up init_db() plus every refresh loop. Pulled into its own
     function (instead of running loose at module level, which is how this
     used to work) so it can be safely called again after a fork.
- 
+
     Why this matters: Gunicorn's worker processes are forked from a master
     process. If the master ever imports this module before forking (e.g.
     with preload_app enabled), plain module-level code — like the old bare
@@ -1108,7 +1232,7 @@ def start_background_threads():
     one is talking to, real traffic handled by a worker that never
     changes — is exactly what caused the dashboard to be stuck on
     "Loading…" while the logs showed successful refreshes.
- 
+
     The fix: gunicorn.conf.py's post_fork hook calls this function again in
     every worker, right after it's forked, guaranteeing the threads run in
     the same process that serves traffic. The PID-based guard below makes
@@ -1123,7 +1247,7 @@ def start_background_threads():
     if _background_started_pid == current_pid:
         return
     _background_started_pid = current_pid
- 
+
     # init_db() only does local SQLite table setup — no network calls — so
     # unlike the fetches below it's fast enough to run synchronously here.
     # That also avoids a startup race: full_index_refresh_loop writes to the
@@ -1131,15 +1255,15 @@ def start_background_threads():
     # exist before its thread starts, not "eventually" once initial_load()
     # gets to it.
     init_db()
- 
+
     threading.Thread(target=initial_load, daemon=True).start()
     threading.Thread(target=price_refresh_loop, daemon=True).start()
     threading.Thread(target=global_refresh_loop, daemon=True).start()
     threading.Thread(target=news_refresh_loop, daemon=True).start()
     threading.Thread(target=snapshot_refresh_loop, daemon=True).start()
     threading.Thread(target=full_index_refresh_loop, daemon=True).start()
- 
- 
+
+
 # Runs at import time regardless of how this module is loaded — covers
 # being run directly (`python server.py`), the test harness (which imports
 # this module via importlib), and Gunicorn workers that import it fresh
@@ -1148,7 +1272,7 @@ def start_background_threads():
 # each actual worker process after the fork; the PID guard above makes that
 # correctly re-run the startup rather than being skipped.
 start_background_threads()
- 
+
 if __name__ == "__main__":
     # debug=True was left on from local development — it should never run on
     # a publicly deployed service: besides the extra memory overhead, Flask's
@@ -1156,4 +1280,3 @@ if __name__ == "__main__":
     # error, which lets whoever triggers that error run arbitrary code on the
     # server. debug=False here as well as on Render.
     app.run(debug=False, use_reloader=False)
- 
