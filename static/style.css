@@ -634,6 +634,23 @@
   .detail-back { display: inline-block; color: var(--text-dim); font-size: 0.85rem; text-decoration: none; margin-bottom: 18px; transition: color 0.15s ease; }
   .detail-back:hover { color: var(--text); }
 
+  /* How Signal Works (/how-it-works) reuses .detail-view for the page shell
+     (back link, header spacing) but needs to be much wider than a single
+     coin's 640px breakdown — it's laid out as a card grid, not a single
+     column of prose, so this ID rule overrides the width just for this one
+     page without touching the coin detail page that shares the class. */
+  #howItWorksView { max-width: 1080px; }
+  .how-it-works-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  /* The closing "What Signal Isn't" card reads as a summary note rather
+     than one topic among equals, so it spans every column instead of
+     sitting in whatever slot the grid would otherwise give it. */
+  .how-it-works-full { grid-column: 1 / -1; }
+
   .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
   .detail-header-left { display: flex; align-items: center; gap: 14px; }
   .coin-dot.lg { width: 48px; height: 48px; font-size: 1.1rem; }
