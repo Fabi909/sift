@@ -1,10 +1,10 @@
-@'
+﻿@'
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sift — Crypto Signal, Not Noise</title>
+<title>Sift â€” Crypto Signal, Not Noise</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
@@ -144,7 +144,7 @@
   </div>
 
   <!-- Per-coin Signal breakdown page (shown instead of the dashboard when the
-       URL is /coin/<id> — see renderRoute() in script.js) -->
+       URL is /coin/<id> â€” see renderRoute() in script.js) -->
   <div class="detail-view" id="coinDetailView" style="display:none">
     <a href="/" class="detail-back">&larr; Back to dashboard</a>
 
@@ -238,10 +238,10 @@
     </div>
   </div>
 
-  <!-- Coin Comparison page (/compare) — pick 2-3 coins, see their Signal,
+  <!-- Coin Comparison page (/compare) â€” pick 2-3 coins, see their Signal,
        confidence, volume and matched news side by side. Frontend-only:
        reuses /api/coin/<id> and /api/search, no new backend. Per-coin
-       candlestick charts are deliberately left out of this view — the chart
+       candlestick charts are deliberately left out of this view â€” the chart
        module currently assumes a single global chart instance (chartCoinId,
        one #chartSvg), which doesn't support 2-3 simultaneous charts without
        a larger refactor. -->
@@ -307,4 +307,3 @@
   <script src="/static/script.js"></script>
 </body>
 </html>
-'@ | Set-Content -Path "static\index.html" -Encoding UTF8
