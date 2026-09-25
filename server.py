@@ -10,6 +10,7 @@ import os
 import sqlite3
 import resource
 import gc
+import calendar
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -953,6 +954,13 @@ def _fetch_one_news_source(source_name, feed_url):
             "link": entry.get("link", ""),
             "source": source_name,
             "published": format_published(raw_parsed),
+            # Epoch seconds (UTC) alongside the pre-formatted string above —
+            # the frontend uses this to display each article's time in the
+            # VIEWER's own local timezone (format_published() above bakes in
+            # UTC, which is fine as a fallback but wrong for anyone not in
+            # UTC). calendar.timegm() (not time.mktime()) is what correctly
+            # treats raw_parsed as UTC rather than the server's local time.
+            "published_ts": calendar.timegm(raw_parsed) if raw_parsed else None,
             # Sorting still needs an actual sortable value even for an entry
             # with no date at all — falls back to the epoch so those sort to
             # the very end (oldest) instead of breaking the sort entirely.
@@ -987,7 +995,8 @@ def fetch_news():
             "title": article["title"],
             "link": article["link"],
             "source": article["source"],
-            "published": article["published"]
+            "published": article["published"],
+            "published_ts": article["published_ts"],
         })
 
     compute_all_signals()  # news changed, so signals might too
@@ -1051,6 +1060,15 @@ def compare_page():
     # (and an optional ?coins=a,b,c query string) and renders the Coin
     # Comparison view instead of the dashboard. This route's only job is
     # making sure a direct link or a page refresh on /compare works.
+    return app.send_static_file("index.html")
+
+
+@app.route("/how-it-works")
+def how_it_works_page():
+    # Same single-page app shell again — script.js renders the static
+    # methodology view instead of the dashboard. Purely explanatory content
+    # (no API calls of its own), so this route's only job, like the two
+    # above, is making a direct link or page refresh work.
     return app.send_static_file("index.html")
 
 

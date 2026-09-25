@@ -598,6 +598,25 @@ function toggleWatch(id) {
 // ---------------------------------------------------------------------------
 // Render: News
 // ---------------------------------------------------------------------------
+// The server sends published_ts as UTC epoch seconds (see _fetch_one_news_
+// source() in server.py) instead of formatting a display string itself,
+// since the server has no way to know the viewer's timezone. toLocaleString()
+// with no explicit timeZone option formats in whatever timezone the
+// browser/OS is actually set to, so a reader in New York and one in Tokyo
+// each see the article's real local time, not a UTC-labeled one. Falls back
+// to the server's pre-formatted (UTC) "published" string only for the rare
+// malformed feed entry with no parseable date at all.
+function formatPublished(article) {
+  if (article.published_ts != null) {
+    const d = new Date(article.published_ts * 1000);
+    return d.toLocaleString(undefined, {
+      weekday: "short", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit"
+    });
+  }
+  return article.published || "";
+}
+
 function renderNews(articles) {
   const list = document.getElementById("newsList");
   if (!articles || articles.length === 0) {
@@ -607,7 +626,7 @@ function renderNews(articles) {
   list.innerHTML = articles.map(a => `
     <a class="news-card" href="${a.link}" target="_blank" rel="noopener">
       <div class="news-title">${a.title}</div>
-      <div class="news-meta"><span class="news-source">${a.source}</span><span>&middot;</span><span>${a.published || ""}</span></div>
+      <div class="news-meta"><span class="news-source">${a.source}</span><span>&middot;</span><span>${formatPublished(a)}</span></div>
     </a>`).join("");
 }
 
@@ -1533,6 +1552,10 @@ function init() {
     document.getElementById("dashboardView").style.display = "none";
     document.getElementById("compareView").style.display = "block";
     initCompare();
+  } else if (location.pathname === "/how-it-works") {
+    document.getElementById("dashboardView").style.display = "none";
+    document.getElementById("howItWorksView").style.display = "block";
+    document.title = "How Signal Works — Sift";
   } else {
     initDashboard();
   }

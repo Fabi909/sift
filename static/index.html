@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sift &mdash; Crypto Signal, Not Noise</title>
+<title>Sift — Crypto Signal, Not Noise</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
@@ -19,6 +19,7 @@
     <div class="nav-right">
       <a class="nav-link active" href="/">Dashboard</a>
       <a class="nav-link" href="/compare">Compare</a>
+      <a class="nav-link" href="/how-it-works">How It Works</a>
       <div class="live-pill"><span class="live-dot"></span>LIVE</div>
     </div>
   </nav>
@@ -143,7 +144,7 @@
   </div>
 
   <!-- Per-coin Signal breakdown page (shown instead of the dashboard when the
-       URL is /coin/<id> â€” see renderRoute() in script.js) -->
+       URL is /coin/<id> — see renderRoute() in script.js) -->
   <div class="detail-view" id="coinDetailView" style="display:none">
     <a href="/" class="detail-back">&larr; Back to dashboard</a>
 
@@ -195,6 +196,7 @@
     <div class="card detail-breakdown">
       <p class="card-title">Signal Breakdown</p>
       <p class="detail-reason" id="detailReason">&mdash;</p>
+      <a href="/how-it-works" class="watch-upgrade-link" style="display:inline-block; margin-top:-8px;">How is this calculated? &rarr;</a>
 
       <div class="detail-metric-row">
         <span class="detail-metric-label">24h Volume</span>
@@ -237,10 +239,10 @@
     </div>
   </div>
 
-  <!-- Coin Comparison page (/compare) â€” pick 2-3 coins, see their Signal,
+  <!-- Coin Comparison page (/compare) — pick 2-3 coins, see their Signal,
        confidence, volume and matched news side by side. Frontend-only:
        reuses /api/coin/<id> and /api/search, no new backend. Per-coin
-       candlestick charts are deliberately left out of this view â€” the chart
+       candlestick charts are deliberately left out of this view — the chart
        module currently assumes a single global chart instance (chartCoinId,
        one #chartSvg), which doesn't support 2-3 simultaneous charts without
        a larger refactor. -->
@@ -264,6 +266,80 @@
 
     <div id="compareTableWrap">
       <p class="loading-row">Add at least 2 coins above to compare.</p>
+    </div>
+  </div>
+
+  <!-- How Signal Works (/how-it-works) — a public methodology page. Purely
+       static/explanatory (no fetches of its own); every number and rule on
+       it is copied straight from the real thresholds and logic in
+       server.py (compute_signal(), compute_confidence(),
+       compute_track_record(), compute_source_reliability()) rather than
+       being separately-written marketing copy that could drift from what
+       the code actually does. -->
+  <div class="detail-view" id="howItWorksView" style="display:none">
+    <a href="/" class="detail-back">&larr; Back to dashboard</a>
+
+    <div class="compare-head">
+      <h1 class="compare-title">How Signal Works</h1>
+      <p class="compare-sub">Signal isn't sentiment, and it isn't a price prediction. It's a mechanical check on whether a coin's trading volume and news coverage actually back up what its price is doing &mdash; built from two independent checks, combined into one of three statuses. No hidden inputs, no manual overrides.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">The Volume Check</p>
+      <p class="detail-reason">Every coin's 24-hour trading volume is compared to its market cap. A big price move on trading volume that's a tiny fraction of the coin's size is easy to fake or coordinate; the same move on volume that's a meaningful share of the whole market cap is much harder to manufacture.</p>
+      <div class="detail-ratio-bar" style="margin-top:6px;">
+        <div class="detail-ratio-track">
+          <div class="detail-ratio-fill" style="width:53%; background:linear-gradient(90deg, var(--down), #ffc94d, var(--up));"></div>
+          <div class="detail-ratio-threshold" style="left:13.3%;" title="2% — below this, trading is considered thin"></div>
+          <div class="detail-ratio-threshold high" style="left:53.3%;" title="8% — above this, volume is considered strong"></div>
+        </div>
+        <div class="detail-ratio-labels">
+          <span>Under 2% &mdash; thin</span>
+          <span>2&ndash;8% &mdash; borderline</span>
+          <span>8%+ &mdash; strong</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">The News Check</p>
+      <p class="detail-reason">Every coin's name and symbol are matched against roughly 15 tracked crypto news RSS sources, refreshed every 5 minutes. Multiple different outlets independently covering the same coin counts as stronger evidence than one single article does &mdash; the Signal tooltip's "News" line names the source(s) it actually found. When nothing matches, that's stated plainly as no matching news coverage, not folded silently into a generic "no evidence" read &mdash; the volume check above still runs and still means something on its own.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">The Three Statuses</p>
+      <div class="track-bucket" style="padding:7px 0;">
+        <span class="track-bucket-label validated">Validated</span>
+        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume clears the 8% bar, AND real news coverage matches.</span>
+      </div>
+      <div class="track-bucket" style="padding:7px 0;">
+        <span class="track-bucket-label mixed">Mixed</span>
+        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Either volume clears 8% with no matching news, or news matches while volume sits in the 2&ndash;8% borderline zone.</span>
+      </div>
+      <div class="track-bucket" style="padding:7px 0;">
+        <span class="track-bucket-label unvalidated">Unvalidated</span>
+        <span class="track-bucket-count" style="text-align:left; flex:1 1 auto;">Volume is under the 2% thin-trading floor, whether or not news happens to mention the coin.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Signal Confidence (0&ndash;100)</p>
+      <p class="detail-reason">A supplementary score for how <em>strongly</em> a coin clears its status &mdash; it never changes which of the three statuses a coin gets, only how convincingly it got there. Weighted 65% on volume strength (full marks at 16% of market cap traded, twice the "real activity" threshold above) and 35% on news corroboration (40 points per independent source, capped at 100 — so three or more outlets is effectively full marks). Deliberately kept out of the main table and shown only in the Signal tooltip and each coin's detail page, so the at-a-glance badge stays simple while the extra precision is there for anyone who wants it.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Signal Track Record</p>
+      <p class="detail-reason">Every coin's Signal status gets snapshotted periodically. Later, each snapshot's price is compared against the coin's price now, bucketed by what the status actually said at snapshot time, across 3/7/14/30-day windows. That's the accountability check on the whole system: if Validated calls don't end up outperforming Unvalidated ones over time, the badge isn't earning its keep. Shown on the dashboard's Signal Track Record card (and per-coin on each coin's own detail page) once enough history has accumulated to make the comparison meaningful.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Source Reliability</p>
+      <p class="detail-reason">The same accountability idea, grouped by news source instead of by Signal status. The first time an outlet's coverage matches a coin, that call and the coin's price at that moment get recorded; later, the average price change since each source's calls is computed across the same 3/7/14/30-day windows. A source only shows up once it has at least 3 tracked calls old enough for a given window &mdash; not enough history yet just means it isn't ranked, not that it's being counted against zero. Toggle "By Source" on the Track Record card to see it.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">What Signal Isn't</p>
+      <p class="detail-reason">Sift is a research tool, not financial advice, and it doesn't touch your wallet or execute trades &mdash; it only reads and structures public price and news data that already exists. A Validated status means the evidence backs up that something real is happening, not that the price will keep moving in any particular direction. Always do your own research before acting on anything you see here.</p>
     </div>
   </div>
 
