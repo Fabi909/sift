@@ -85,7 +85,7 @@
     transition: background 0.15s ease;
   }
   .logo:hover { background: rgba(255,255,255,0.04); }
-  .logo:hover .logo-mark { filter: drop-shadow(0 0 10px var(--accent-soft)) drop-shadow(0 0 2px var(--accent)); }
+  .logo:hover .logo-mark { filter: drop-shadow(0 0 10px rgba(255,255,255,0.25)) drop-shadow(0 0 2px rgba(255,255,255,0.45)); }
 
   .logo-mark { width: 26px; height: 26px; flex-shrink: 0; transition: filter 0.2s ease; }
 
