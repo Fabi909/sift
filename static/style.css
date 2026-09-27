@@ -89,8 +89,7 @@
 
   .logo-mark { width: 26px; height: 26px; flex-shrink: 0; transition: filter 0.2s ease; }
 
-  .logo-word { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.02em; color: var(--text); }
-  .logo-word span { color: var(--brand); }
+  .logo-word { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.14em; color: #ffffff; }
 
   .nav-right { display: flex; align-items: center; gap: 22px; }
 
