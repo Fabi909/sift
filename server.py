@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 import requests
@@ -1070,6 +1070,42 @@ def how_it_works_page():
     # (no API calls of its own), so this route's only job, like the two
     # above, is making a direct link or page refresh work.
     return app.send_static_file("index.html")
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    # An explicit route rather than a static/robots.txt file — Flask's
+    # static folder is served under /static/, but crawlers only ever check
+    # for this file at the domain root, so it has to be routed there
+    # directly rather than relying on send_static_file's /static/ prefix.
+    body = "User-agent: *\nAllow: /\n\nSitemap: https://sift-9qyf.onrender.com/sitemap.xml\n"
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    # Same "single source of truth" idea as the How Signal Works page: built
+    # from cached_coins at request time instead of a hand-maintained list of
+    # coin URLs, so it can't silently drift out of date as coins are added
+    # or drop out of the tracked set.
+    base = "https://sift-9qyf.onrender.com"
+    urls = [f"{base}/", f"{base}/compare", f"{base}/how-it-works"]
+    urls += [f"{base}/coin/{coin['id']}" for coin in cached_coins if coin.get("id")]
+
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    parts += [f"  <url><loc>{url}</loc></url>" for url in urls]
+    parts.append("</urlset>")
+
+    return Response("\n".join(parts), mimetype="application/xml")
+
+
+@app.errorhandler(404)
+def not_found(e):
+    # A bad /coin/<id>, a typo'd path, or a stale bookmark all land here
+    # instead of Flask's bare default error page — keeps the branded nav
+    # and a way back to the dashboard visible even on a wrong turn.
+    return app.send_static_file("404.html"), 404
 
 
 @app.route("/api/prices")
