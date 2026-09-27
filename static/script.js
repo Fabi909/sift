@@ -1000,7 +1000,7 @@ function renderCoinDetail(coin) {
        </a>`
     : `<p class="loading-row">No matching coverage found in the current news cache.</p>`;
 
-  document.title = `${coin.name} (${(coin.symbol || "").toUpperCase()}) — Sift`;
+  document.title = `Sift | ${coin.name} (${(coin.symbol || "").toUpperCase()})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1582,12 +1582,14 @@ function init() {
   } else if (location.pathname === "/compare") {
     document.getElementById("dashboardView").style.display = "none";
     document.getElementById("compareView").style.display = "block";
+    document.title = "Sift | Compare";
     initCompare();
   } else if (location.pathname === "/how-it-works") {
     document.getElementById("dashboardView").style.display = "none";
     document.getElementById("howItWorksView").style.display = "block";
-    document.title = "How Signal Works — Sift";
+    document.title = "Sift | How It Works";
   } else {
+    document.title = "Sift | Dashboard";
     initDashboard();
   }
 }
