@@ -36,6 +36,13 @@
       <a class="nav-link" href="/compare">Compare</a>
       <a class="nav-link" href="/how-it-works">How It Works</a>
       <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+      <div class="account-area" id="accountArea">
+        <button class="account-signin-btn" id="accountSignInBtn">Sign In</button>
+        <div class="account-user" id="accountUser" style="display:none;">
+          <span class="account-email" id="accountEmail"></span>
+          <button class="account-signout-btn" id="accountSignOutBtn">Sign Out</button>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -394,6 +401,34 @@
       </div>
       <p class="upgrade-modal-sub" style="margin:16px 0 0; font-size:0.72rem;">
         Plans aren't wired up to real billing yet &mdash; clicking a plan here just switches it locally so you can see how it looks and feels.
+      </p>
+    </div>
+  </div>
+
+  <div class="auth-overlay" id="authOverlay">
+    <div class="auth-modal">
+      <div class="upgrade-modal-head">
+        <div>
+          <h2 id="authModalTitle">Sign in</h2>
+          <p class="upgrade-modal-sub" id="authModalSub">Sign in to sync your watchlist and plan across devices.</p>
+        </div>
+        <button class="upgrade-close" id="authClose">&#10005;</button>
+      </div>
+      <form id="authForm">
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="authEmail" required autocomplete="email">
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input type="password" id="authPassword" required autocomplete="current-password" minlength="8">
+        </label>
+        <p class="auth-error" id="authError" style="display:none;"></p>
+        <button type="submit" class="auth-submit" id="authSubmit">Sign In</button>
+      </form>
+      <p class="auth-switch">
+        <span id="authSwitchText">Don&rsquo;t have an account?</span>
+        <button type="button" class="auth-switch-btn" id="authSwitchBtn">Sign up</button>
       </p>
     </div>
   </div>

@@ -43,6 +43,8 @@ let userTier = getTier();
 // session-only list of un-dismissed "your coin's Signal changed" notices.
 let signalBaseline = getSignalBaseline();
 let signalAlerts = [];
+let currentUser = null;   // null when signed out; {email, tier, watchlist} once signed in
+let authMode = "signin"; // "signin" | "signup" — which form the auth modal is showing
 
 // ---------------------------------------------------------------------------
 // localStorage (watchlist + plan tier)
@@ -76,6 +78,98 @@ function getSignalBaseline() {
 }
 function setSignalBaseline(obj) {
   try { localStorage.setItem("sift_signal_baseline", JSON.stringify(obj)); } catch (e) {}
+}
+
+// ---------------------------------------------------------------------------
+// Accounts (sign in / sign up / sign out)
+//
+// Signed-out visitors keep using the localStorage watchlist/tier above
+// exactly as before. Once signed in, watchlist/userTier stay the same local
+// variables everything already renders from — they just also get pushed to
+// the server (see syncWatchlistAdd/Remove and the tier button handler below)
+// so they follow the account to another browser or device instead of
+// staying stuck on this one.
+// ---------------------------------------------------------------------------
+async function apiJson(url, options) {
+  const res = await fetch(url, Object.assign({ headers: { "Content-Type": "application/json" } }, options));
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* no body */ }
+  if (!res.ok) throw new Error((data && data.error) || "Something went wrong.");
+  return data;
+}
+
+function applyUserState(user) {
+  currentUser = user;
+  document.getElementById("accountSignInBtn").style.display = user ? "none" : "";
+  document.getElementById("accountUser").style.display = user ? "flex" : "none";
+  document.getElementById("accountEmail").textContent = user ? user.email : "";
+
+  if (user) {
+    userTier = user.tier;
+    setTier(userTier);
+    watchlist = user.watchlist || [];
+    setWatchlist(watchlist);
+  }
+
+  renderWatchlist();
+  renderTable();
+  ensureWatchlistCoinsLoaded().then(() => { renderWatchlist(); renderTable(); });
+}
+
+// Runs once on page load. A signed-out visitor gets a quiet 401-free "null"
+// back and nothing changes; a signed-in one gets their account's watchlist
+// and tier applied on top of whatever was already showing from localStorage.
+async function initAuth() {
+  try {
+    const user = await apiJson("/api/auth/me");
+    if (user) applyUserState(user);
+  } catch (err) {
+    console.error("Failed to load account state", err);
+  }
+}
+
+function openAuthModal(mode) {
+  authMode = mode;
+  document.getElementById("authModalTitle").textContent = mode === "signup" ? "Create your account" : "Sign in";
+  document.getElementById("authModalSub").textContent = mode === "signup"
+    ? "Save your watchlist and plan so they follow you to any device."
+    : "Sign in to sync your watchlist and plan across devices.";
+  document.getElementById("authSubmit").textContent = mode === "signup" ? "Sign Up" : "Sign In";
+  document.getElementById("authSwitchText").textContent = mode === "signup" ? "Already have an account?" : "Don\u2019t have an account?";
+  document.getElementById("authSwitchBtn").textContent = mode === "signup" ? "Sign in" : "Sign up";
+  document.getElementById("authError").style.display = "none";
+  document.getElementById("authForm").reset();
+  document.getElementById("authOverlay").classList.add("open");
+}
+function closeAuthModal() { document.getElementById("authOverlay").classList.remove("open"); }
+
+// After a fresh signup/login, the server's watchlist (possibly empty, or
+// from a previous session on this account) wins first — then whatever was
+// pinned locally as a guest on THIS browser gets pushed up too, so creating
+// an account never quietly loses coins you'd already starred.
+async function handleAuthSuccess(user) {
+  const guestWatchlist = getWatchlist();
+  applyUserState(user);
+  const toAdd = guestWatchlist.filter(id => !watchlist.includes(id));
+  for (const id of toAdd) {
+    try {
+      const data = await apiJson("/api/watchlist", { method: "POST", body: JSON.stringify({ coin_id: id }) });
+      watchlist = data.watchlist;
+      setWatchlist(watchlist);
+    } catch (err) { console.error("Failed to sync watchlisted coin", id, err); }
+  }
+  renderWatchlist();
+  renderTable();
+  closeAuthModal();
+}
+
+function syncWatchlistAdd(id) {
+  apiJson("/api/watchlist", { method: "POST", body: JSON.stringify({ coin_id: id }) })
+    .catch(err => console.error("Failed to save watchlist add", err));
+}
+function syncWatchlistRemove(id) {
+  apiJson(`/api/watchlist/${encodeURIComponent(id)}`, { method: "DELETE" })
+    .catch(err => console.error("Failed to save watchlist remove", err));
 }
 
 // ---------------------------------------------------------------------------
@@ -596,6 +690,7 @@ function toggleWatch(id) {
     setStarState(id, false);
     signalAlerts = signalAlerts.filter(a => a.id !== id);
     renderWatchlist();
+    if (currentUser) syncWatchlistRemove(id);
     return;
   }
   if (watchlist.length >= TIERS[userTier].limit) {
@@ -606,6 +701,7 @@ function toggleWatch(id) {
   setWatchlist(watchlist);
   setStarState(id, true);
   renderWatchlist();
+  if (currentUser) syncWatchlistAdd(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -823,7 +919,54 @@ document.querySelectorAll("[data-tier-btn]").forEach(btn => {
     setTier(userTier);
     renderWatchlist();
     closeUpgradeModal();
+    if (currentUser) {
+      apiJson("/api/auth/tier", { method: "POST", body: JSON.stringify({ tier: userTier }) })
+        .catch(err => console.error("Failed to save tier change", err));
+    }
   });
+});
+
+// ---------------------------------------------------------------------------
+// Event wiring — accounts
+// ---------------------------------------------------------------------------
+document.getElementById("accountSignInBtn").addEventListener("click", () => openAuthModal("signin"));
+document.getElementById("accountSignOutBtn").addEventListener("click", async () => {
+  try { await apiJson("/api/auth/logout", { method: "POST" }); }
+  catch (err) { console.error("Sign out failed", err); }
+  // Local watchlist/tier stay exactly as they are (last-synced from the
+  // account) so signing out doesn't yank pinned coins out from under you
+  // mid-session — it just stops pushing further changes anywhere until you
+  // sign in again.
+  currentUser = null;
+  document.getElementById("accountSignInBtn").style.display = "";
+  document.getElementById("accountUser").style.display = "none";
+  document.getElementById("accountEmail").textContent = "";
+});
+document.getElementById("authClose").addEventListener("click", closeAuthModal);
+document.getElementById("authOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "authOverlay") closeAuthModal();
+});
+document.getElementById("authSwitchBtn").addEventListener("click", () => {
+  openAuthModal(authMode === "signup" ? "signin" : "signup");
+});
+document.getElementById("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const errEl = document.getElementById("authError");
+  const submitBtn = document.getElementById("authSubmit");
+  errEl.style.display = "none";
+  submitBtn.disabled = true;
+  try {
+    const endpoint = authMode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+    const user = await apiJson(endpoint, { method: "POST", body: JSON.stringify({ email, password }) });
+    await handleAuthSuccess(user);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = "block";
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
 
 document.querySelectorAll(".tf-tab").forEach(tab => {
@@ -1574,6 +1717,7 @@ function updateNavActiveState() {
 
 function init() {
   updateNavActiveState();
+  initAuth();
   const match = location.pathname.match(/^\/coin\/([^/]+)/);
   if (match) {
     document.getElementById("dashboardView").style.display = "none";

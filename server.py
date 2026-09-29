@@ -1,5 +1,6 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, session
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import requests
 import threading
@@ -8,6 +9,7 @@ import re
 import feedparser
 import os
 import sqlite3
+import secrets
 import resource
 import gc
 import calendar
@@ -17,7 +19,31 @@ from datetime import datetime
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
+
+# SECRET_KEY signs the session cookie accounts rely on (Flask's session is a
+# signed cookie, not server-side storage, so this key is what makes it
+# unforgeable). Falling back to a random key means every restart invalidates
+# everyone's session — fine for local dev, not for production. Set a real
+# SECRET_KEY in Render's environment (same place as SIGNAL_HISTORY_DB) so
+# logins survive deploys instead of silently signing everyone out.
+app.secret_key = os.getenv("SECRET_KEY") or secrets.token_hex(32)
+if not os.getenv("SECRET_KEY"):
+    print("WARNING: SECRET_KEY not set — using a random key for this process. "
+          "Every restart will sign all logged-in users out. Set SECRET_KEY "
+          "in the environment for real deployments.")
+
+# Cross-site cookie settings: the frontend and API are same-origin in
+# production (Flask serves both from sift-9qyf.onrender.com), but SameSite
+# "Lax" plus Secure keeps the session cookie working over HTTPS without
+# opening it up to being sent cross-site.
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") != "development",
+    SESSION_COOKIE_HTTPONLY=True,
+)
+
+VALID_TIERS = ("basic", "premium", "super")
 
 START_TIME = time.time()
 
@@ -362,6 +388,24 @@ def init_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_name ON coin_index (name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_coin_index_symbol ON coin_index (symbol)")
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            tier TEXT NOT NULL DEFAULT 'basic',
+            created_at INTEGER NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_watchlist (
+            user_id INTEGER NOT NULL,
+            coin_id TEXT NOT NULL,
+            added_at INTEGER NOT NULL,
+            PRIMARY KEY (user_id, coin_id)
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS source_calls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1106,6 +1150,176 @@ def not_found(e):
     # instead of Flask's bare default error page — keeps the branded nav
     # and a way back to the dashboard visible even on a wrong turn.
     return app.send_static_file("404.html"), 404
+
+
+# --- Accounts -----------------------------------------------------------
+# Flask's session is a signed cookie (see app.secret_key above), so "logged
+# in" just means the cookie holds a user_id the server trusts. No server-side
+# session table needed. Watchlist/tier live in the users/user_watchlist
+# tables (see init_db()) once someone's signed in; logged-out visitors keep
+# using the existing localStorage behavior in script.js untouched.
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _user_row_to_dict(row, watchlist):
+    return {"email": row[1], "tier": row[3], "watchlist": watchlist}
+
+
+def _get_watchlist(conn, user_id):
+    rows = conn.execute(
+        "SELECT coin_id FROM user_watchlist WHERE user_id = ? ORDER BY added_at",
+        (user_id,),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+@app.route("/api/auth/signup", methods=["POST"])
+def auth_signup():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not EMAIL_RE.match(email):
+        return jsonify({"error": "Enter a valid email address."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if existing:
+            return jsonify({"error": "An account with that email already exists."}), 409
+
+        password_hash = generate_password_hash(password)
+        cur = conn.execute(
+            "INSERT INTO users (email, password_hash, tier, created_at) VALUES (?, ?, 'basic', ?)",
+            (email, password_hash, int(time.time())),
+        )
+        conn.commit()
+        user_id = cur.lastrowid
+    finally:
+        conn.close()
+
+    session.clear()
+    session["user_id"] = user_id
+    return jsonify({"email": email, "tier": "basic", "watchlist": []})
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        row = conn.execute(
+            "SELECT id, email, password_hash, tier FROM users WHERE email = ?", (email,)
+        ).fetchone()
+        if not row or not check_password_hash(row[2], password):
+            return jsonify({"error": "Wrong email or password."}), 401
+
+        watchlist = _get_watchlist(conn, row[0])
+    finally:
+        conn.close()
+
+    session.clear()
+    session["user_id"] = row[0]
+    return jsonify(_user_row_to_dict(row, watchlist))
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.clear()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/me")
+def auth_me():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(None)
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        row = conn.execute(
+            "SELECT id, email, password_hash, tier FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if not row:
+            # Account was deleted out from under an existing session cookie.
+            session.clear()
+            return jsonify(None)
+        watchlist = _get_watchlist(conn, row[0])
+    finally:
+        conn.close()
+
+    return jsonify(_user_row_to_dict(row, watchlist))
+
+
+@app.route("/api/auth/tier", methods=["POST"])
+def auth_set_tier():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Sign in first."}), 401
+
+    data = request.get_json(silent=True) or {}
+    tier = data.get("tier")
+    if tier not in VALID_TIERS:
+        return jsonify({"error": "Unknown tier."}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({"tier": tier})
+
+
+@app.route("/api/watchlist", methods=["POST"])
+def watchlist_add():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Sign in first."}), 401
+
+    data = request.get_json(silent=True) or {}
+    coin_id = (data.get("coin_id") or "").strip()
+    if not coin_id:
+        return jsonify({"error": "Missing coin_id."}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO user_watchlist (user_id, coin_id, added_at) VALUES (?, ?, ?)",
+            (user_id, coin_id, int(time.time())),
+        )
+        conn.commit()
+        watchlist = _get_watchlist(conn, user_id)
+    finally:
+        conn.close()
+
+    return jsonify({"watchlist": watchlist})
+
+
+@app.route("/api/watchlist/<coin_id>", methods=["DELETE"])
+def watchlist_remove(coin_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Sign in first."}), 401
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute(
+            "DELETE FROM user_watchlist WHERE user_id = ? AND coin_id = ?", (user_id, coin_id)
+        )
+        conn.commit()
+        watchlist = _get_watchlist(conn, user_id)
+    finally:
+        conn.close()
+
+    return jsonify({"watchlist": watchlist})
 
 
 @app.route("/api/prices")
